@@ -56,6 +56,7 @@ export interface Interest {
   spec: InterestSpec;
   alertCount: number;
   lastAlertAt?: string;
+  lastViewedAt?: string;
   color: string;
   emoji: string;
 }

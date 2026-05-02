@@ -194,6 +194,9 @@ components:
               enum: [youtube, twitter, reddit, rss, match]
             name:
               type: string
+            url:
+              type: string
+              description: Direct link to the original source. Opens externally when tapped.
         tags:
           type: array
           items: { type: string }

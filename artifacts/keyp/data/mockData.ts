@@ -36,7 +36,7 @@ export const MOCK_INTERESTS: Interest[] = [
     alertCount: 12,
     lastAlertAt: timeAgo(30),
     spec: {
-      id: 'spec_001',
+      id: 'int_001',
       userId: 'user_001',
       rawText: '방탄소년단 콘서트 일정 알려줘',
       intentType: 'alert',
@@ -62,7 +62,7 @@ export const MOCK_INTERESTS: Interest[] = [
     alertCount: 8,
     lastAlertAt: timeAgo(120),
     spec: {
-      id: 'spec_002',
+      id: 'int_002',
       userId: 'user_001',
       rawText: '다음 달 뉴욕 여행 준비하려는데 현지 정보 알고 싶어',
       intentType: 'travel',
@@ -89,7 +89,7 @@ export const MOCK_INTERESTS: Interest[] = [
     alertCount: 5,
     lastAlertAt: timeAgo(240),
     spec: {
-      id: 'spec_003',
+      id: 'int_003',
       userId: 'user_001',
       rawText: '유망한 AI 스타트업 투자 기회 찾고 있어',
       intentType: 'opportunity',
@@ -114,7 +114,7 @@ export const MOCK_INTERESTS: Interest[] = [
     alertCount: 3,
     lastAlertAt: timeAgo(480),
     spec: {
-      id: 'spec_004',
+      id: 'int_004',
       userId: 'user_001',
       rawText: '호날두 최근 경기 소식 알려줘',
       intentType: 'creator_watch',

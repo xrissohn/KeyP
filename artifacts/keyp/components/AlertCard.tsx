@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ConfidenceBadge from '@/components/ConfidenceBadge';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
@@ -49,6 +49,16 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
   const handleHide = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     hideAlert(alert.id);
+  };
+
+  const sourceUrl = alert.source.url ?? alert.originalUrl;
+  const handleOpenSource = (e: { stopPropagation?: () => void }) => {
+    e.stopPropagation?.();
+    if (!sourceUrl) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    Linking.openURL(sourceUrl).catch(() => {
+      // Silent fail — user-facing error would be too noisy here.
+    });
   };
 
   const formatTime = (iso: string) => {
@@ -118,6 +128,23 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
           ))}
         </View>
       </View>
+
+      {sourceUrl && (
+        <TouchableOpacity
+          style={[styles.sourceLink, { borderColor: colors.border, backgroundColor: colors.secondary }]}
+          onPress={handleOpenSource}
+          activeOpacity={0.7}
+        >
+          <Feather name="external-link" size={13} color={colors.primary} />
+          <Text
+            style={[styles.sourceLinkText, { color: colors.primary }]}
+            numberOfLines={1}
+          >
+            출처 보기 · {alert.source.name}
+          </Text>
+          <Feather name="arrow-up-right" size={13} color={colors.primary} />
+        </TouchableOpacity>
+      )}
 
       <View style={[styles.actions, { borderTopColor: colors.border }]}>
         <TouchableOpacity
@@ -241,6 +268,21 @@ const styles = StyleSheet.create({
   tagText: {
     fontSize: 10,
     fontFamily: 'Inter_500Medium',
+  },
+  sourceLink: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    borderRadius: 10,
+    borderWidth: 1,
+    marginBottom: 12,
+  },
+  sourceLinkText: {
+    flex: 1,
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
   },
   actions: {
     flexDirection: 'row',

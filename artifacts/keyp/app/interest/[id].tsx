@@ -1,10 +1,9 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
-import ConfidenceBadge from '@/components/ConfidenceBadge';
 import EmptyState from '@/components/EmptyState';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
@@ -32,13 +31,26 @@ export default function InterestDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { interests, alerts, deleteInterest } = useApp();
+  const { interests, alerts, deleteInterest, markInterestViewed, getNewAlertCount } = useApp();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
   const interest = interests.find((i) => i.id === id);
-  const interestAlerts = alerts.filter((a) => a.interestId === id);
+  const interestAlerts = alerts
+    .filter((a) => a.interestId === id)
+    .sort(
+      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+    );
+  const newCount = id ? getNewAlertCount(id) : 0;
+
+  useEffect(() => {
+    if (id && interest && newCount > 0) {
+      // Defer so the NEW indicator stays visible briefly before being cleared.
+      const t = setTimeout(() => markInterestViewed(id), 600);
+      return () => clearTimeout(t);
+    }
+  }, [id, interest, newCount, markInterestViewed]);
 
   if (!interest) {
     return (
@@ -115,9 +127,16 @@ export default function InterestDetailScreen() {
       </View>
 
       {interestAlerts.length > 0 && (
-        <Text style={[styles.alertsHeader, { color: colors.foreground }]}>
-          관련 알림 {interestAlerts.length}개
-        </Text>
+        <View style={styles.alertsHeaderRow}>
+          <Text style={[styles.alertsHeader, { color: colors.foreground }]}>
+            알림 히스토리 {interestAlerts.length}개
+          </Text>
+          {newCount > 0 && (
+            <View style={[styles.newPill, { backgroundColor: colors.destructive ?? '#EF4444' }]}>
+              <Text style={styles.newPillText}>NEW {newCount}</Text>
+            </View>
+          )}
+        </View>
       )}
     </View>
   );
@@ -304,10 +323,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontFamily: 'Inter_500Medium',
   },
+  alertsHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
   alertsHeader: {
     fontSize: 17,
     fontFamily: 'Inter_700Bold',
-    marginBottom: 12,
+  },
+  newPill: {
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    borderRadius: 10,
+  },
+  newPillText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
   emptyWrap: { height: 300 },
 });

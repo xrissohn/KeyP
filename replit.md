@@ -49,6 +49,13 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
   - **Deliverer** = deterministic freshness×confidence sort (no LLM)
   - For `intentType=match`: Collector and Verifier skip LLM calls and use deterministic in-app match logic.
   - **UI**: `app/interest/add.tsx` renders the actual server-returned `steps[]` (not hardcoded labels) via an `onSteps` callback piped through `AppContext.addInterest`. Renderer is server-driven: appends any unknown agents the server emits and uses dynamic total counts (no hardcoded `/5`). Stale callbacks from earlier requests are guarded by a `requestIdRef`.
+  - **Source URLs**: `AlertSource.url` is part of the OpenAPI contract. The Collector extracts URLs from Perplexity citations; the Verifier preserves them through scoring; the Deliverer returns them in the response. The mobile client maps `source.url → AlertCard 출처 보기 button`, which calls `Linking.openURL` to open the original source externally.
+
+#### Interest list & history UI
+- `components/InterestCard.tsx` renders each interest with a red **NEW <count>** badge when `getNewAlertCount(interestId) > 0` (computed against `interest.lastViewedAt`).
+- Tapping a card opens `app/interest/[id].tsx` which shows the interest spec + a newest-first **알림 히스토리** of all alerts for that interest. A `useEffect` calls `markInterestViewed(id)` ~600 ms after mount so the NEW pill is visible briefly before being cleared.
+- `components/AlertCard.tsx` shows a "**출처 보기 · <source name>**" button when `alert.source.url` (or `originalUrl`) is present; tapping it calls `Linking.openURL(...)` to leave the app for the original source.
+- **Critical invariant**: `Interest.id === Interest.spec.id`. Alerts reference `spec.id` as their `interestId`, so `AppContext.addInterest` assigns `newInterest.id = spec.id` to keep the detail screen filter (`alerts.filter(a => a.interestId === id)`) working. Diverging these IDs makes the history view permanently empty.
 - **Types**: `types/index.ts` — InterestSpec, Alert, Match, User, etc.
 - **Mock Data**: `data/mockData.ts` — sample interests, alerts, matches
 

@@ -10,4 +10,6 @@ import type { AlertDataSourceType } from "./alertDataSourceType";
 export type AlertDataSource = {
   type: AlertDataSourceType;
   name: string;
+  /** Direct link to the original source. Opens externally when tapped. */
+  url?: string;
 };

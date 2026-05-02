@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { Interest } from '@/types';
 
@@ -32,6 +33,8 @@ interface Props {
 export default function InterestCard({ interest, onDelete }: Props) {
   const colors = useColors();
   const router = useRouter();
+  const { getNewAlertCount } = useApp();
+  const newCount = getNewAlertCount(interest.id);
 
   const handlePress = () => {
     router.push({ pathname: '/interest/[id]', params: { id: interest.id } });
@@ -62,9 +65,21 @@ export default function InterestCard({ interest, onDelete }: Props) {
           <Text style={styles.emoji}>{interest.emoji}</Text>
         </View>
         <View style={styles.info}>
-          <Text style={[styles.name, { color: colors.foreground }]} numberOfLines={1}>
-            {interest.displayName}
-          </Text>
+          <View style={styles.nameRow}>
+            <Text
+              style={[styles.name, { color: colors.foreground, flex: 1 }]}
+              numberOfLines={1}
+            >
+              {interest.displayName}
+            </Text>
+            {newCount > 0 && (
+              <View style={[styles.newBadge, { backgroundColor: colors.destructive ?? '#EF4444' }]}>
+                <Text style={styles.newBadgeText}>
+                  NEW {newCount > 99 ? '99+' : newCount}
+                </Text>
+              </View>
+            )}
+          </View>
           <View style={styles.metaRow}>
             <View style={[styles.intentBadge, { backgroundColor: interest.color + '20' }]}>
               <Text style={[styles.intentText, { color: interest.color }]}>
@@ -101,15 +116,15 @@ export default function InterestCard({ interest, onDelete }: Props) {
         <View style={styles.alertInfo}>
           {interest.alertCount > 0 && (
             <>
-              <View style={[styles.alertDot, { backgroundColor: colors.primary }]} />
-              <Text style={[styles.alertCount, { color: colors.primary }]}>
-                {interest.alertCount}개
+              <Feather name="bell" size={11} color={colors.mutedForeground} />
+              <Text style={[styles.alertCount, { color: colors.mutedForeground }]}>
+                {interest.alertCount}
               </Text>
             </>
           )}
           {interest.lastAlertAt && (
             <Text style={[styles.lastAlert, { color: colors.mutedForeground }]}>
-              {formatTime(interest.lastAlertAt)}
+              · {formatTime(interest.lastAlertAt)}
             </Text>
           )}
         </View>
@@ -145,9 +160,27 @@ const styles = StyleSheet.create({
     flex: 1,
     gap: 4,
   },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+  },
   name: {
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
+  },
+  newBadge: {
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 22,
+    alignItems: 'center',
+  },
+  newBadgeText: {
+    fontSize: 10,
+    fontFamily: 'Inter_700Bold',
+    color: '#fff',
+    letterSpacing: 0.3,
   },
   metaRow: {
     flexDirection: 'row',
@@ -193,14 +226,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     gap: 4,
   },
-  alertDot: {
-    width: 5,
-    height: 5,
-    borderRadius: 3,
-  },
   alertCount: {
     fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
+    fontFamily: 'Inter_500Medium',
   },
   lastAlert: {
     fontSize: 11,

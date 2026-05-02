@@ -147,6 +147,10 @@ export async function generateAlertsForSpec(
       const freshness: FreshnessLevel = VALID_FRESHNESS.has(a.freshness as FreshnessLevel)
         ? (a.freshness as FreshnessLevel)
         : 'recent';
+      const sourceUrl =
+        typeof a.source.url === 'string' && a.source.url.length > 0
+          ? a.source.url
+          : undefined;
       return {
         id: generateId(),
         interestId: spec.id,
@@ -159,7 +163,9 @@ export async function generateAlertsForSpec(
         source: {
           type: sourceType,
           name: a.source.name || SOURCE_NAMES[sourceType],
+          url: sourceUrl,
         },
+        originalUrl: sourceUrl,
         tags: a.tags ?? spec.entities.slice(0, 3),
         isSaved: false,
         createdAt: new Date(

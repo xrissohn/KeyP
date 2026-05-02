@@ -123,6 +123,12 @@ export const GenerateAlertsResponse = zod.object({
       source: zod.object({
         type: zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
         name: zod.string(),
+        url: zod
+          .string()
+          .optional()
+          .describe(
+            "Direct link to the original source. Opens externally when tapped.",
+          ),
       }),
       tags: zod.array(zod.string()),
       minutesAgo: zod
