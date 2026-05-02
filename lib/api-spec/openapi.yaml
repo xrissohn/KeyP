@@ -10,6 +10,8 @@ servers:
 tags:
   - name: health
     description: Health operations
+  - name: agents
+    description: KeyP multi-agent pipeline
 paths:
   /healthz:
     get:
@@ -24,6 +26,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/HealthStatus"
+  /agents/parse-interest:
+    post:
+      operationId: parseInterest
+      tags: [agents]
+      summary: Planner Agent — parse natural-language interest into structured spec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseInterestRequest"
+      responses:
+        "200":
+          description: Parsed interest spec
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParsedInterestResult"
+  /agents/generate-alerts:
+    post:
+      operationId: generateAlerts
+      tags: [agents]
+      summary: Multi-agent pipeline — Source Router + Collector + Verifier produce alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateAlertsRequest"
+      responses:
+        "200":
+          description: Generated alerts with agent traces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedAlertsResult"
 components:
   schemas:
     HealthStatus:
@@ -33,4 +71,144 @@ components:
           type: string
       required:
         - status
-
+    ParseInterestRequest:
+      type: object
+      required: [rawText]
+      properties:
+        rawText:
+          type: string
+          minLength: 2
+          maxLength: 1000
+        userId:
+          type: string
+    InterestSpecData:
+      type: object
+      required:
+        - intentType
+        - topic
+        - entities
+        - urgency
+        - desiredOutcome
+        - trustNeed
+        - privacyLevel
+        - suggestedSources
+      properties:
+        intentType:
+          type: string
+          enum: [monitor, alert, opportunity, match, creator_watch, travel, local_signal]
+        topic:
+          type: string
+        entities:
+          type: array
+          items: { type: string }
+        locationScope:
+          type: string
+          nullable: true
+        urgency:
+          type: string
+          enum: [high, medium, low]
+        desiredOutcome:
+          type: string
+        trustNeed:
+          type: string
+          enum: [high, medium, low]
+        matchMode:
+          type: string
+          nullable: true
+          enum: [companion, friend, collaborate, meal_mate, date]
+        privacyLevel:
+          type: string
+          enum: [public, friends, private]
+        negativeConstraints:
+          type: array
+          items: { type: string }
+        suggestedSources:
+          type: array
+          items:
+            type: string
+            enum: [youtube, twitter, reddit, rss, match]
+    AgentStep:
+      type: object
+      required: [agent, status, message]
+      properties:
+        agent:
+          type: string
+        status:
+          type: string
+          enum: [success, partial, failed]
+        message:
+          type: string
+        durationMs:
+          type: number
+    ParsedInterestResult:
+      type: object
+      required: [spec, steps]
+      properties:
+        spec:
+          $ref: "#/components/schemas/InterestSpecData"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentStep"
+    GenerateAlertsRequest:
+      type: object
+      required: [spec]
+      properties:
+        spec:
+          $ref: "#/components/schemas/InterestSpecData"
+        count:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+    AlertData:
+      type: object
+      required:
+        - title
+        - summary
+        - reason
+        - confidence
+        - freshness
+        - source
+        - tags
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        reason:
+          type: string
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+        freshness:
+          type: string
+          enum: [live, hot, recent, older]
+        source:
+          type: object
+          required: [type, name]
+          properties:
+            type:
+              type: string
+              enum: [youtube, twitter, reddit, rss, match]
+            name:
+              type: string
+        tags:
+          type: array
+          items: { type: string }
+        minutesAgo:
+          type: integer
+          minimum: 0
+    GeneratedAlertsResult:
+      type: object
+      required: [alerts, steps]
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertData"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentStep"

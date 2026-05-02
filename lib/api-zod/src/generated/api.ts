@@ -14,3 +14,129 @@ import * as zod from "zod";
 export const HealthCheckResponse = zod.object({
   status: zod.string(),
 });
+
+/**
+ * @summary Planner Agent — parse natural-language interest into structured spec
+ */
+export const parseInterestBodyRawTextMin = 2;
+export const parseInterestBodyRawTextMax = 1000;
+
+export const ParseInterestBody = zod.object({
+  rawText: zod
+    .string()
+    .min(parseInterestBodyRawTextMin)
+    .max(parseInterestBodyRawTextMax),
+  userId: zod.string().optional(),
+});
+
+export const ParseInterestResponse = zod.object({
+  spec: zod.object({
+    intentType: zod.enum([
+      "monitor",
+      "alert",
+      "opportunity",
+      "match",
+      "creator_watch",
+      "travel",
+      "local_signal",
+    ]),
+    topic: zod.string(),
+    entities: zod.array(zod.string()),
+    locationScope: zod.string().nullish(),
+    urgency: zod.enum(["high", "medium", "low"]),
+    desiredOutcome: zod.string(),
+    trustNeed: zod.enum(["high", "medium", "low"]),
+    matchMode: zod
+      .enum(["companion", "friend", "collaborate", "meal_mate", "date"])
+      .nullish(),
+    privacyLevel: zod.enum(["public", "friends", "private"]),
+    negativeConstraints: zod.array(zod.string()).optional(),
+    suggestedSources: zod.array(
+      zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+    ),
+  }),
+  steps: zod.array(
+    zod.object({
+      agent: zod.string(),
+      status: zod.enum(["success", "partial", "failed"]),
+      message: zod.string(),
+      durationMs: zod.number().optional(),
+    }),
+  ),
+});
+
+/**
+ * @summary Multi-agent pipeline — Source Router + Collector + Verifier produce alerts
+ */
+export const generateAlertsBodyCountDefault = 3;
+export const generateAlertsBodyCountMax = 5;
+
+export const GenerateAlertsBody = zod.object({
+  spec: zod.object({
+    intentType: zod.enum([
+      "monitor",
+      "alert",
+      "opportunity",
+      "match",
+      "creator_watch",
+      "travel",
+      "local_signal",
+    ]),
+    topic: zod.string(),
+    entities: zod.array(zod.string()),
+    locationScope: zod.string().nullish(),
+    urgency: zod.enum(["high", "medium", "low"]),
+    desiredOutcome: zod.string(),
+    trustNeed: zod.enum(["high", "medium", "low"]),
+    matchMode: zod
+      .enum(["companion", "friend", "collaborate", "meal_mate", "date"])
+      .nullish(),
+    privacyLevel: zod.enum(["public", "friends", "private"]),
+    negativeConstraints: zod.array(zod.string()).optional(),
+    suggestedSources: zod.array(
+      zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+    ),
+  }),
+  count: zod
+    .number()
+    .min(1)
+    .max(generateAlertsBodyCountMax)
+    .default(generateAlertsBodyCountDefault),
+});
+
+export const generateAlertsResponseAlertsItemConfidenceMin = 0;
+export const generateAlertsResponseAlertsItemConfidenceMax = 100;
+
+export const generateAlertsResponseAlertsItemMinutesAgoMin = 0;
+
+export const GenerateAlertsResponse = zod.object({
+  alerts: zod.array(
+    zod.object({
+      title: zod.string(),
+      summary: zod.string(),
+      reason: zod.string(),
+      confidence: zod
+        .number()
+        .min(generateAlertsResponseAlertsItemConfidenceMin)
+        .max(generateAlertsResponseAlertsItemConfidenceMax),
+      freshness: zod.enum(["live", "hot", "recent", "older"]),
+      source: zod.object({
+        type: zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+        name: zod.string(),
+      }),
+      tags: zod.array(zod.string()),
+      minutesAgo: zod
+        .number()
+        .min(generateAlertsResponseAlertsItemMinutesAgoMin)
+        .optional(),
+    }),
+  ),
+  steps: zod.array(
+    zod.object({
+      agent: zod.string(),
+      status: zod.enum(["success", "partial", "failed"]),
+      message: zod.string(),
+      durationMs: zod.number().optional(),
+    }),
+  ),
+});

@@ -37,9 +37,12 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 #### Architecture
 - **Auth**: Mock auth via AsyncStorage (`context/AuthContext.tsx`)
 - **State**: App-wide context (`context/AppContext.tsx`) — interests, alerts, matches
-- **Mock Pipeline**:
-  - `lib/agents/PlannerAgent.ts` — keyword-based NL → InterestSpec parser
-  - `lib/agents/MockPipeline.ts` — alert generation (setTimeout-based simulation)
+- **AI Pipeline (real OpenAI gpt-5.4 via Replit AI Integrations)**:
+  - `lib/agents/ApiClient.ts` — fetch wrapper hitting `/api/agents/*` endpoints
+  - `lib/agents/PlannerAgent.ts` — calls `POST /api/agents/parse-interest`; keyword-based fallback on failure
+  - `lib/agents/MockPipeline.ts` — calls `POST /api/agents/generate-alerts`; template fallback on failure
+  - Server route: `artifacts/api-server/src/routes/agents.ts` (Planner → SourceRouter → Collector → Verifier → Deliverer)
+  - OpenAI client: `lib/integrations-openai-ai-server/` (uses `AI_INTEGRATIONS_OPENAI_*` env vars)
 - **Types**: `types/index.ts` — InterestSpec, Alert, Match, User, etc.
 - **Mock Data**: `data/mockData.ts` — sample interests, alerts, matches
 
@@ -80,8 +83,9 @@ components/
 - Source colors: YouTube `#FF0000`, Twitter `#1D9BF0`, Reddit `#FF4500`
 
 #### Key Design Decisions
-- All persistence via AsyncStorage (no backend required)
-- Mock pipeline simulates 1.5–2.5s AI processing with setTimeout
+- Local persistence via AsyncStorage; agent pipeline calls API server for real LLM
+- Server validates LLM JSON output with Zod and falls back deterministically on schema mismatch
+- Client sanitizes enum fields and falls back to local templates on transport/error failures
 - NativeTabs with liquid glass on iOS 26+, BlurView tab bar on older iOS
 - Full Korean UI throughout
 - Interest add screen shows step-by-step agent pipeline visualization

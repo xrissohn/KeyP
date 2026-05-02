@@ -6,4 +6,21 @@
  * OpenAPI spec version: 0.1.0
  */
 
+export * from "./agentStep";
+export * from "./agentStepStatus";
+export * from "./alertData";
+export * from "./alertDataFreshness";
+export * from "./alertDataSource";
+export * from "./alertDataSourceType";
+export * from "./generateAlertsRequest";
+export * from "./generatedAlertsResult";
 export * from "./healthStatus";
+export * from "./interestSpecData";
+export * from "./interestSpecDataIntentType";
+export * from "./interestSpecDataMatchMode";
+export * from "./interestSpecDataPrivacyLevel";
+export * from "./interestSpecDataSuggestedSourcesItem";
+export * from "./interestSpecDataTrustNeed";
+export * from "./interestSpecDataUrgency";
+export * from "./parsedInterestResult";
+export * from "./parseInterestRequest";

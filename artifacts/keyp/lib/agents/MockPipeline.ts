@@ -1,4 +1,5 @@
 import type { Alert, FreshnessLevel, InterestSpec, SourceType } from '@/types';
+import { callGenerateAlerts } from './ApiClient';
 
 const generateId = () =>
   Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -22,13 +23,9 @@ function getFreshness(minutesAgo: number): FreshnessLevel {
   return 'older';
 }
 
-const TEMPLATES: Record<
+const FALLBACK_TEMPLATES: Record<
   InterestSpec['intentType'],
-  Array<{
-    title: (topic: string) => string;
-    summary: (topic: string) => string;
-    source: SourceType;
-  }>
+  Array<{ title: (t: string) => string; summary: (t: string) => string; source: SourceType }>
 > = {
   alert: [
     {
@@ -36,12 +33,6 @@ const TEMPLATES: Record<
       summary: (t) =>
         `${t} 관련 공식 채널에서 새로운 발표가 있었습니다. 팬들의 뜨거운 반응이 이어지고 있으며, 관련 해시태그가 실시간 트렌드 1위에 올랐습니다.`,
       source: 'twitter',
-    },
-    {
-      title: (t) => `${t} 일정 최초 공개 — 티켓 정보는?`,
-      summary: (t) =>
-        `${t}의 공식 일정이 처음으로 공개되었습니다. 선예매 일정과 티켓 가격대가 공개될 예정으로 관심 있는 분들은 빠른 확인이 필요합니다.`,
-      source: 'youtube',
     },
   ],
   monitor: [
@@ -59,12 +50,6 @@ const TEMPLATES: Record<
         `${t} 여행자들이 놓치기 쉬운 현지인 추천 장소들입니다. 주요 관광지보다 덜 붐비면서도 만족도가 높은 스팟들을 소개합니다.`,
       source: 'youtube',
     },
-    {
-      title: (t) => `${t} 여행자 커뮤니티 최신 후기 모음`,
-      summary: (t) =>
-        `${t} 를 다녀온 여행자들의 생생한 후기가 모였습니다. 숙소, 맛집, 교통 관련 실용적인 팁이 포함되어 있습니다.`,
-      source: 'reddit',
-    },
   ],
   opportunity: [
     {
@@ -72,12 +57,6 @@ const TEMPLATES: Record<
       summary: (t) =>
         `${t} 관련 시장에서 새로운 투자 기회가 발견되었습니다. 전문가 분석에 따르면 향후 12개월 내 주목할 만한 성장이 예상됩니다.`,
       source: 'twitter',
-    },
-    {
-      title: (t) => `${t} 관련 스타트업, 대형 VC 투자 유치`,
-      summary: (t) =>
-        `${t} 분야의 신생 스타트업이 주요 벤처캐피털로부터 대규모 투자를 유치했습니다. 시장의 높은 관심을 반영합니다.`,
-      source: 'rss',
     },
   ],
   creator_watch: [
@@ -106,45 +85,87 @@ const TEMPLATES: Record<
   ],
 };
 
-export async function generateAlertsForSpec(
-  spec: InterestSpec,
-  count = 3
-): Promise<Alert[]> {
-  await new Promise((resolve) =>
-    setTimeout(resolve, randomBetween(1000, 2500))
-  );
-
-  const templates = TEMPLATES[spec.intentType] ?? TEMPLATES['monitor'];
+function fallbackAlerts(spec: InterestSpec, count: number): Alert[] {
+  const templates = FALLBACK_TEMPLATES[spec.intentType] ?? FALLBACK_TEMPLATES.monitor;
   const alerts: Alert[] = [];
-
   for (let i = 0; i < count; i++) {
     const template = templates[i % templates.length];
     const minutesAgo = randomBetween(2, 300);
     const confidence = randomBetween(65, 97);
-    const freshness = getFreshness(minutesAgo);
-
     alerts.push({
       id: generateId(),
       interestId: spec.id,
       interestName: spec.topic,
       title: template.title(spec.topic),
       summary: template.summary(spec.topic),
-      reason: `${spec.topic} 관심사와 관련된 신호 감지 (${spec.suggestedSources[0]} 1순위)`,
+      reason: `${spec.topic} 관심사와 관련된 신호 감지`,
       confidence,
-      freshness,
-      source: {
-        type: template.source,
-        name: SOURCE_NAMES[template.source],
-      },
+      freshness: getFreshness(minutesAgo),
+      source: { type: template.source, name: SOURCE_NAMES[template.source] },
       tags: spec.entities.slice(0, 3),
       isSaved: false,
-      createdAt: new Date(
-        Date.now() - minutesAgo * 60 * 1000
-      ).toISOString(),
+      createdAt: new Date(Date.now() - minutesAgo * 60 * 1000).toISOString(),
     });
   }
-
   return alerts;
+}
+
+const VALID_FRESHNESS = new Set<FreshnessLevel>(['live', 'hot', 'recent', 'older']);
+const VALID_SOURCES_ALERT = new Set<SourceType>(['youtube', 'twitter', 'reddit', 'rss', 'match']);
+
+export async function generateAlertsForSpec(
+  spec: InterestSpec,
+  count = 3
+): Promise<Alert[]> {
+  try {
+    const result = await callGenerateAlerts(
+      {
+        intentType: spec.intentType,
+        topic: spec.topic,
+        entities: spec.entities,
+        locationScope: spec.locationScope ?? null,
+        urgency: spec.urgency,
+        desiredOutcome: spec.desiredOutcome,
+        trustNeed: spec.trustNeed,
+        matchMode: spec.matchMode ?? null,
+        privacyLevel: spec.privacyLevel,
+        negativeConstraints: spec.negativeConstraints,
+        suggestedSources: spec.suggestedSources,
+      },
+      count
+    );
+    return (result.alerts ?? []).map((a) => {
+      const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)
+        ? (a.source.type as SourceType)
+        : 'rss';
+      const freshness: FreshnessLevel = VALID_FRESHNESS.has(a.freshness as FreshnessLevel)
+        ? (a.freshness as FreshnessLevel)
+        : 'recent';
+      return {
+        id: generateId(),
+        interestId: spec.id,
+        interestName: spec.topic,
+        title: a.title,
+        summary: a.summary,
+        reason: a.reason,
+        confidence: Math.min(100, Math.max(0, Math.round(a.confidence))),
+        freshness,
+        source: {
+          type: sourceType,
+          name: a.source.name || SOURCE_NAMES[sourceType],
+        },
+        tags: a.tags ?? spec.entities.slice(0, 3),
+        isSaved: false,
+        createdAt: new Date(
+          Date.now() - (a.minutesAgo ?? 30) * 60 * 1000
+        ).toISOString(),
+      };
+    });
+  } catch (err) {
+    console.warn('[KeyP] generateAlerts API failed, using local fallback:', err);
+    await new Promise((resolve) => setTimeout(resolve, 800));
+    return fallbackAlerts(spec, count);
+  }
 }
 
 export function computeSourceScore(

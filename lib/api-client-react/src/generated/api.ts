@@ -5,18 +5,27 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import type {
+  MutationFunction,
   QueryFunction,
   QueryKey,
+  UseMutationOptions,
+  UseMutationResult,
   UseQueryOptions,
   UseQueryResult,
 } from "@tanstack/react-query";
 
-import type { HealthStatus } from "./api.schemas";
+import type {
+  GenerateAlertsRequest,
+  GeneratedAlertsResult,
+  HealthStatus,
+  ParseInterestRequest,
+  ParsedInterestResult,
+} from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
-import type { ErrorType } from "../custom-fetch";
+import type { ErrorType, BodyType } from "../custom-fetch";
 
 type AwaitedInput<T> = PromiseLike<T> | T;
 
@@ -99,3 +108,175 @@ export function useHealthCheck<
 
   return { ...query, queryKey: queryOptions.queryKey };
 }
+
+/**
+ * @summary Planner Agent — parse natural-language interest into structured spec
+ */
+export const getParseInterestUrl = () => {
+  return `/api/agents/parse-interest`;
+};
+
+export const parseInterest = async (
+  parseInterestRequest: ParseInterestRequest,
+  options?: RequestInit,
+): Promise<ParsedInterestResult> => {
+  return customFetch<ParsedInterestResult>(getParseInterestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(parseInterestRequest),
+  });
+};
+
+export const getParseInterestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof parseInterest>>,
+    TError,
+    { data: BodyType<ParseInterestRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof parseInterest>>,
+  TError,
+  { data: BodyType<ParseInterestRequest> },
+  TContext
+> => {
+  const mutationKey = ["parseInterest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof parseInterest>>,
+    { data: BodyType<ParseInterestRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return parseInterest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type ParseInterestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof parseInterest>>
+>;
+export type ParseInterestMutationBody = BodyType<ParseInterestRequest>;
+export type ParseInterestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Planner Agent — parse natural-language interest into structured spec
+ */
+export const useParseInterest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof parseInterest>>,
+    TError,
+    { data: BodyType<ParseInterestRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof parseInterest>>,
+  TError,
+  { data: BodyType<ParseInterestRequest> },
+  TContext
+> => {
+  return useMutation(getParseInterestMutationOptions(options));
+};
+
+/**
+ * @summary Multi-agent pipeline — Source Router + Collector + Verifier produce alerts
+ */
+export const getGenerateAlertsUrl = () => {
+  return `/api/agents/generate-alerts`;
+};
+
+export const generateAlerts = async (
+  generateAlertsRequest: GenerateAlertsRequest,
+  options?: RequestInit,
+): Promise<GeneratedAlertsResult> => {
+  return customFetch<GeneratedAlertsResult>(getGenerateAlertsUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(generateAlertsRequest),
+  });
+};
+
+export const getGenerateAlertsMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateAlerts>>,
+    TError,
+    { data: BodyType<GenerateAlertsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof generateAlerts>>,
+  TError,
+  { data: BodyType<GenerateAlertsRequest> },
+  TContext
+> => {
+  const mutationKey = ["generateAlerts"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof generateAlerts>>,
+    { data: BodyType<GenerateAlertsRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return generateAlerts(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type GenerateAlertsMutationResult = NonNullable<
+  Awaited<ReturnType<typeof generateAlerts>>
+>;
+export type GenerateAlertsMutationBody = BodyType<GenerateAlertsRequest>;
+export type GenerateAlertsMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Multi-agent pipeline — Source Router + Collector + Verifier produce alerts
+ */
+export const useGenerateAlerts = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof generateAlerts>>,
+    TError,
+    { data: BodyType<GenerateAlertsRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof generateAlerts>>,
+  TError,
+  { data: BodyType<GenerateAlertsRequest> },
+  TContext
+> => {
+  return useMutation(getGenerateAlertsMutationOptions(options));
+};

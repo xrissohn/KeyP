@@ -8,3 +8,166 @@
 export interface HealthStatus {
   status: string;
 }
+
+export interface ParseInterestRequest {
+  /**
+   * @minLength 2
+   * @maxLength 1000
+   */
+  rawText: string;
+  userId?: string;
+}
+
+export type InterestSpecDataIntentType =
+  (typeof InterestSpecDataIntentType)[keyof typeof InterestSpecDataIntentType];
+
+export const InterestSpecDataIntentType = {
+  monitor: "monitor",
+  alert: "alert",
+  opportunity: "opportunity",
+  match: "match",
+  creator_watch: "creator_watch",
+  travel: "travel",
+  local_signal: "local_signal",
+} as const;
+
+export type InterestSpecDataUrgency =
+  (typeof InterestSpecDataUrgency)[keyof typeof InterestSpecDataUrgency];
+
+export const InterestSpecDataUrgency = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export type InterestSpecDataTrustNeed =
+  (typeof InterestSpecDataTrustNeed)[keyof typeof InterestSpecDataTrustNeed];
+
+export const InterestSpecDataTrustNeed = {
+  high: "high",
+  medium: "medium",
+  low: "low",
+} as const;
+
+export type InterestSpecDataMatchMode =
+  | (typeof InterestSpecDataMatchMode)[keyof typeof InterestSpecDataMatchMode]
+  | null;
+
+export const InterestSpecDataMatchMode = {
+  companion: "companion",
+  friend: "friend",
+  collaborate: "collaborate",
+  meal_mate: "meal_mate",
+  date: "date",
+} as const;
+
+export type InterestSpecDataPrivacyLevel =
+  (typeof InterestSpecDataPrivacyLevel)[keyof typeof InterestSpecDataPrivacyLevel];
+
+export const InterestSpecDataPrivacyLevel = {
+  public: "public",
+  friends: "friends",
+  private: "private",
+} as const;
+
+export type InterestSpecDataSuggestedSourcesItem =
+  (typeof InterestSpecDataSuggestedSourcesItem)[keyof typeof InterestSpecDataSuggestedSourcesItem];
+
+export const InterestSpecDataSuggestedSourcesItem = {
+  youtube: "youtube",
+  twitter: "twitter",
+  reddit: "reddit",
+  rss: "rss",
+  match: "match",
+} as const;
+
+export interface InterestSpecData {
+  intentType: InterestSpecDataIntentType;
+  topic: string;
+  entities: string[];
+  locationScope?: string | null;
+  urgency: InterestSpecDataUrgency;
+  desiredOutcome: string;
+  trustNeed: InterestSpecDataTrustNeed;
+  matchMode?: InterestSpecDataMatchMode;
+  privacyLevel: InterestSpecDataPrivacyLevel;
+  negativeConstraints?: string[];
+  suggestedSources: InterestSpecDataSuggestedSourcesItem[];
+}
+
+export type AgentStepStatus =
+  (typeof AgentStepStatus)[keyof typeof AgentStepStatus];
+
+export const AgentStepStatus = {
+  success: "success",
+  partial: "partial",
+  failed: "failed",
+} as const;
+
+export interface AgentStep {
+  agent: string;
+  status: AgentStepStatus;
+  message: string;
+  durationMs?: number;
+}
+
+export interface ParsedInterestResult {
+  spec: InterestSpecData;
+  steps: AgentStep[];
+}
+
+export interface GenerateAlertsRequest {
+  spec: InterestSpecData;
+  /**
+   * @minimum 1
+   * @maximum 5
+   */
+  count?: number;
+}
+
+export type AlertDataFreshness =
+  (typeof AlertDataFreshness)[keyof typeof AlertDataFreshness];
+
+export const AlertDataFreshness = {
+  live: "live",
+  hot: "hot",
+  recent: "recent",
+  older: "older",
+} as const;
+
+export type AlertDataSourceType =
+  (typeof AlertDataSourceType)[keyof typeof AlertDataSourceType];
+
+export const AlertDataSourceType = {
+  youtube: "youtube",
+  twitter: "twitter",
+  reddit: "reddit",
+  rss: "rss",
+  match: "match",
+} as const;
+
+export type AlertDataSource = {
+  type: AlertDataSourceType;
+  name: string;
+};
+
+export interface AlertData {
+  title: string;
+  summary: string;
+  reason: string;
+  /**
+   * @minimum 0
+   * @maximum 100
+   */
+  confidence: number;
+  freshness: AlertDataFreshness;
+  source: AlertDataSource;
+  tags: string[];
+  /** @minimum 0 */
+  minutesAgo?: number;
+}
+
+export interface GeneratedAlertsResult {
+  alerts: AlertData[];
+  steps: AgentStep[];
+}

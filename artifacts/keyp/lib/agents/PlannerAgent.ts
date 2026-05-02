@@ -1,4 +1,5 @@
 import type { IntentType, InterestSpec, MatchMode, SourceType, Urgency } from '@/types';
+import { callParseInterest } from './ApiClient';
 
 const generateId = () =>
   Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -19,21 +20,9 @@ const URGENCY_KEYWORDS: Record<Urgency, string[]> = {
   low: ['언젠가', '나중에', '천천히', '미래', '장기'],
 };
 
-const SOURCE_MAPPING: Record<string, SourceType[]> = {
-  kpop: ['youtube', 'twitter', 'reddit'],
-  music: ['youtube', 'twitter', 'reddit'],
-  travel: ['youtube', 'reddit', 'rss'],
-  sports: ['twitter', 'youtube', 'reddit'],
-  tech: ['twitter', 'reddit', 'rss'],
-  finance: ['twitter', 'rss', 'reddit'],
-  news: ['rss', 'twitter', 'reddit'],
-  default: ['twitter', 'youtube', 'reddit', 'rss'],
-};
-
 function detectIntent(text: string): IntentType {
   let maxScore = 0;
   let detected: IntentType = 'monitor';
-
   for (const [intent, keywords] of Object.entries(INTENT_KEYWORDS)) {
     const score = keywords.filter((kw) => text.includes(kw)).length;
     if (score > maxScore) {
@@ -56,19 +45,20 @@ function detectUrgency(text: string): Urgency {
 function extractEntities(text: string): string[] {
   const entities: string[] = [];
   const words = text.split(/[\s,]+/);
-
   for (const word of words) {
-    if (word.length >= 2 && !['알려줘', '싶어', '하고', '이고', '있어', '정보', '관련', '대한'].includes(word)) {
+    if (
+      word.length >= 2 &&
+      !['알려줘', '싶어', '하고', '이고', '있어', '정보', '관련', '대한'].includes(word)
+    ) {
       entities.push(word);
     }
   }
-
   return [...new Set(entities)].slice(0, 6);
 }
 
 function extractLocation(text: string): string | undefined {
   const locationPatterns = [
-    '서울', '부산', '뉴욕', '도쿄', '런던', '파리', 'LA', '뉴욕', '홍콩',
+    '서울', '부산', '뉴욕', '도쿄', '런던', '파리', 'LA', '홍콩',
     '싱가포르', '방콕', '베이징', '상하이', '대구', '인천', '광주', '대전',
   ];
   return locationPatterns.find((loc) => text.includes(loc));
@@ -83,24 +73,6 @@ function detectMatchMode(text: string): MatchMode | undefined {
   return undefined;
 }
 
-function selectSources(text: string, intent: IntentType): SourceType[] {
-  const lower = text.toLowerCase();
-
-  if (['kpop', 'k-pop', '아이돌', '방탄', 'bts', '블랙핑크', '뉴진스'].some(k => lower.includes(k))) {
-    return SOURCE_MAPPING.kpop;
-  }
-  if (['여행', 'travel'].some(k => lower.includes(k))) return SOURCE_MAPPING.travel;
-  if (['축구', '야구', '농구', '스포츠', '경기'].some(k => lower.includes(k))) return SOURCE_MAPPING.sports;
-  if (['ai', '기술', '개발', '프로그래밍', '스타트업'].some(k => lower.includes(k))) return SOURCE_MAPPING.tech;
-  if (['투자', '주식', '코인', '암호화폐', '비트코인'].some(k => lower.includes(k))) return SOURCE_MAPPING.finance;
-
-  if (intent === 'creator_watch') return ['youtube', 'twitter'];
-  if (intent === 'travel') return SOURCE_MAPPING.travel;
-  if (intent === 'opportunity') return SOURCE_MAPPING.finance;
-
-  return SOURCE_MAPPING.default;
-}
-
 function generateTopic(text: string): string {
   const cleaned = text
     .replace(/알려줘|싶어요|해줘|정보|관련|대한|찾고|있어|하고|이고/g, '')
@@ -108,35 +80,17 @@ function generateTopic(text: string): string {
   return cleaned.length > 20 ? cleaned.slice(0, 20) + '...' : cleaned;
 }
 
-function generateOutcome(intentType: IntentType, topic: string): string {
-  const outcomes: Record<IntentType, string> = {
-    monitor: `${topic} 관련 최신 동향 모니터링`,
-    alert: `${topic} 중요 알림 즉시 수신`,
-    opportunity: `${topic} 투자/기회 발견`,
-    match: `${topic} 관심사 기반 사람 연결`,
-    creator_watch: `${topic} 새 콘텐츠 알림`,
-    travel: `${topic} 현지 정보 및 팁 수집`,
-    local_signal: `${topic} 지역 신호 탐지`,
-  };
-  return outcomes[intentType];
-}
-
-export async function parseInterest(
-  userId: string,
-  rawText: string
-): Promise<InterestSpec> {
-  await new Promise((resolve) => setTimeout(resolve, 1500));
-
+function fallbackSpec(userId: string, rawText: string): InterestSpec {
   const intentType = detectIntent(rawText);
   const urgency = detectUrgency(rawText);
   const entities = extractEntities(rawText);
   const location = extractLocation(rawText);
   const matchMode = detectMatchMode(rawText);
-  const suggestedSources = selectSources(rawText, intentType);
   const topic = generateTopic(rawText);
-  const desiredOutcome = generateOutcome(intentType, topic);
   const now = new Date().toISOString();
-
+  const suggestedSources: SourceType[] = matchMode
+    ? ['match', 'twitter', 'reddit']
+    : ['twitter', 'youtube', 'reddit', 'rss'];
   return {
     id: generateId(),
     userId,
@@ -146,7 +100,7 @@ export async function parseInterest(
     entities,
     locationScope: location,
     urgency,
-    desiredOutcome,
+    desiredOutcome: `${topic} 관련 동향 추적`,
     trustNeed: urgency === 'high' ? 'high' : 'medium',
     matchMode,
     privacyLevel: matchMode ? 'friends' : 'public',
@@ -156,4 +110,57 @@ export async function parseInterest(
     createdAt: now,
     updatedAt: now,
   };
+}
+
+const VALID_INTENTS = new Set<IntentType>([
+  'monitor', 'alert', 'opportunity', 'match', 'creator_watch', 'travel', 'local_signal',
+]);
+const VALID_URGENCIES = new Set<Urgency>(['low', 'medium', 'high']);
+const VALID_TRUST = new Set<'low' | 'medium' | 'high'>(['low', 'medium', 'high']);
+const VALID_MATCH_MODES = new Set<MatchMode>([
+  'friend', 'companion', 'collaborate', 'meal_mate', 'date',
+]);
+const VALID_PRIVACY = new Set<'public' | 'friends' | 'private'>(['public', 'friends', 'private']);
+const VALID_SOURCES = new Set<SourceType>(['youtube', 'twitter', 'reddit', 'rss', 'match']);
+
+function safeEnum<T>(value: unknown, valid: Set<T>, fallback: T): T {
+  return valid.has(value as T) ? (value as T) : fallback;
+}
+
+export async function parseInterest(
+  userId: string,
+  rawText: string
+): Promise<InterestSpec> {
+  try {
+    const result = await callParseInterest(rawText, userId);
+    const s = result.spec;
+    const now = new Date().toISOString();
+    const sources = (s.suggestedSources ?? [])
+      .filter((src): src is SourceType => VALID_SOURCES.has(src as SourceType));
+    return {
+      id: generateId(),
+      userId,
+      rawText,
+      intentType: safeEnum(s.intentType, VALID_INTENTS, 'monitor'),
+      topic: s.topic || rawText.slice(0, 30),
+      entities: Array.isArray(s.entities) ? s.entities.slice(0, 6) : [],
+      locationScope: s.locationScope ?? undefined,
+      urgency: safeEnum(s.urgency, VALID_URGENCIES, 'medium'),
+      desiredOutcome: s.desiredOutcome || `${s.topic} 관련 동향 추적`,
+      trustNeed: safeEnum(s.trustNeed, VALID_TRUST, 'medium'),
+      matchMode: s.matchMode != null && VALID_MATCH_MODES.has(s.matchMode as MatchMode)
+        ? (s.matchMode as MatchMode)
+        : undefined,
+      privacyLevel: safeEnum(s.privacyLevel, VALID_PRIVACY, 'public'),
+      negativeConstraints: s.negativeConstraints ?? [],
+      suggestedSources: sources.length > 0 ? sources : ['twitter', 'youtube', 'reddit', 'rss'],
+      isActive: true,
+      createdAt: now,
+      updatedAt: now,
+    };
+  } catch (err) {
+    console.warn('[KeyP] parseInterest API failed, using local fallback:', err);
+    await new Promise((resolve) => setTimeout(resolve, 600));
+    return fallbackSpec(userId, rawText);
+  }
 }
