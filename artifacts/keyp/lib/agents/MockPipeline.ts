@@ -1,5 +1,11 @@
 import type { Alert, FreshnessLevel, InterestSpec, SourceType } from '@/types';
+import type { AgentStep } from '@workspace/api-client-react';
 import { callGenerateAlerts } from './ApiClient';
+
+export interface GenerateAlertsWithStepsResult {
+  alerts: Alert[];
+  steps: AgentStep[];
+}
 
 const generateId = () =>
   Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -116,7 +122,7 @@ const VALID_SOURCES_ALERT = new Set<SourceType>(['youtube', 'twitter', 'reddit',
 export async function generateAlertsForSpec(
   spec: InterestSpec,
   count = 3
-): Promise<Alert[]> {
+): Promise<GenerateAlertsWithStepsResult> {
   try {
     const result = await callGenerateAlerts(
       {
@@ -134,7 +140,7 @@ export async function generateAlertsForSpec(
       },
       count
     );
-    return (result.alerts ?? []).map((a) => {
+    const alerts = (result.alerts ?? []).map((a): Alert => {
       const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)
         ? (a.source.type as SourceType)
         : 'rss';
@@ -161,10 +167,33 @@ export async function generateAlertsForSpec(
         ).toISOString(),
       };
     });
+    return { alerts, steps: result.steps ?? [] };
   } catch (err) {
     console.warn('[KeyP] generateAlerts API failed, using local fallback:', err);
     await new Promise((resolve) => setTimeout(resolve, 800));
-    return fallbackAlerts(spec, count);
+    return {
+      alerts: fallbackAlerts(spec, count),
+      steps: [
+        {
+          agent: 'Collector',
+          status: 'failed',
+          message: '서버 호출 실패 — 로컬 템플릿 사용',
+          durationMs: 800,
+        },
+        {
+          agent: 'Verifier',
+          status: 'partial',
+          message: '검증 건너뜀',
+          durationMs: 0,
+        },
+        {
+          agent: 'Deliverer',
+          status: 'success',
+          message: `${count}건 폴백 알림 생성`,
+          durationMs: 0,
+        },
+      ],
+    };
   }
 }
 

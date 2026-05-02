@@ -37,12 +37,18 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 #### Architecture
 - **Auth**: Mock auth via AsyncStorage (`context/AuthContext.tsx`)
 - **State**: App-wide context (`context/AppContext.tsx`) — interests, alerts, matches
-- **AI Pipeline (real OpenAI gpt-5.4 via Replit AI Integrations)**:
+- **AI Pipeline (specialized model per agent role, all via Replit AI Integrations — no user API keys, billed to credits)**:
   - `lib/agents/ApiClient.ts` — fetch wrapper hitting `/api/agents/*` endpoints
-  - `lib/agents/PlannerAgent.ts` — calls `POST /api/agents/parse-interest`; keyword-based fallback on failure
+  - `lib/agents/PlannerAgent.ts` — calls `POST /api/agents/parse-interest`; keyword fallback on failure
   - `lib/agents/MockPipeline.ts` — calls `POST /api/agents/generate-alerts`; template fallback on failure
-  - Server route: `artifacts/api-server/src/routes/agents.ts` (Planner → SourceRouter → Collector → Verifier → Deliverer)
-  - OpenAI client: `lib/integrations-openai-ai-server/` (uses `AI_INTEGRATIONS_OPENAI_*` env vars)
+  - Server route: `artifacts/api-server/src/routes/agents.ts`
+  - **Planner** = OpenAI **gpt-5.4** (`@workspace/integrations-openai-ai-server`) — JSON-mode structured extraction
+  - **SourceRouter** = deterministic priority calc (no LLM)
+  - **Collector** = Perplexity **`perplexity/sonar`** via OpenRouter (`@workspace/integrations-openrouter-ai`) — real web search returning live URLs/citations
+  - **Verifier** = Anthropic **`claude-sonnet-4-6`** (`@workspace/integrations-anthropic-ai`) — credibility & relevance scoring per candidate
+  - **Deliverer** = deterministic freshness×confidence sort (no LLM)
+  - For `intentType=match`: Collector and Verifier skip LLM calls and use deterministic in-app match logic.
+  - **UI**: `app/interest/add.tsx` renders the actual server-returned `steps[]` (not hardcoded labels) via an `onSteps` callback piped through `AppContext.addInterest`. Renderer is server-driven: appends any unknown agents the server emits and uses dynamic total counts (no hardcoded `/5`). Stale callbacks from earlier requests are guarded by a `requestIdRef`.
 - **Types**: `types/index.ts` — InterestSpec, Alert, Match, User, etc.
 - **Mock Data**: `data/mockData.ts` — sample interests, alerts, matches
 

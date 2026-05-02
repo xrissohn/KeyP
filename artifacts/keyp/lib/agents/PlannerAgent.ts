@@ -1,5 +1,8 @@
 import type { IntentType, InterestSpec, MatchMode, SourceType, Urgency } from '@/types';
 import { callParseInterest } from './ApiClient';
+import type { AgentStep } from '@workspace/api-client-react';
+
+export type AgentStepInfo = AgentStep;
 
 const generateId = () =>
   Date.now().toString() + Math.random().toString(36).substr(2, 9);
@@ -127,17 +130,22 @@ function safeEnum<T>(value: unknown, valid: Set<T>, fallback: T): T {
   return valid.has(value as T) ? (value as T) : fallback;
 }
 
+export interface ParseInterestResult {
+  spec: InterestSpec;
+  steps: AgentStepInfo[];
+}
+
 export async function parseInterest(
   userId: string,
   rawText: string
-): Promise<InterestSpec> {
+): Promise<ParseInterestResult> {
   try {
     const result = await callParseInterest(rawText, userId);
     const s = result.spec;
     const now = new Date().toISOString();
     const sources = (s.suggestedSources ?? [])
       .filter((src): src is SourceType => VALID_SOURCES.has(src as SourceType));
-    return {
+    const spec: InterestSpec = {
       id: generateId(),
       userId,
       rawText,
@@ -158,9 +166,20 @@ export async function parseInterest(
       createdAt: now,
       updatedAt: now,
     };
+    return { spec, steps: result.steps ?? [] };
   } catch (err) {
     console.warn('[KeyP] parseInterest API failed, using local fallback:', err);
     await new Promise((resolve) => setTimeout(resolve, 600));
-    return fallbackSpec(userId, rawText);
+    return {
+      spec: fallbackSpec(userId, rawText),
+      steps: [
+        {
+          agent: 'Planner',
+          status: 'partial',
+          message: '서버 호출 실패 — 로컬 키워드 분석 사용',
+          durationMs: 600,
+        },
+      ],
+    };
   }
 }

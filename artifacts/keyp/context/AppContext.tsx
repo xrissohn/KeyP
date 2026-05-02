@@ -3,14 +3,24 @@ import React, { createContext, useCallback, useContext, useEffect, useState } fr
 import { MOCK_ALERTS, MOCK_INTERESTS, MOCK_MATCHES } from '@/data/mockData';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
+import type { AgentStep } from '@workspace/api-client-react';
 import type { Alert, FeedbackType, Interest, InterestSpec, Match } from '@/types';
+
+export interface AddInterestResult {
+  spec: InterestSpec;
+  steps: AgentStep[];
+}
 
 interface AppContextType {
   interests: Interest[];
   alerts: Alert[];
   matches: Match[];
   isProcessingInterest: boolean;
-  addInterest: (userId: string, rawText: string) => Promise<InterestSpec>;
+  addInterest: (
+    userId: string,
+    rawText: string,
+    onSteps?: (steps: AgentStep[]) => void
+  ) => Promise<AddInterestResult>;
   deleteInterest: (interestId: string) => void;
   toggleSaveAlert: (alertId: string) => void;
   setAlertFeedback: (alertId: string, feedback: FeedbackType) => void;
@@ -65,10 +75,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     } catch {}
   };
 
-  const addInterest = useCallback(async (userId: string, rawText: string): Promise<InterestSpec> => {
+  const addInterest = useCallback(async (
+    userId: string,
+    rawText: string,
+    onSteps?: (steps: AgentStep[]) => void
+  ): Promise<AddInterestResult> => {
     setIsProcessingInterest(true);
     try {
-      const spec = await parseInterest(userId, rawText);
+      const { spec, steps: plannerSteps } = await parseInterest(userId, rawText);
+      onSteps?.(plannerSteps);
+
       const INTEREST_COLORS = ['#5B7FFF', '#FF6B8A', '#4ADE80', '#FBBF24', '#A78BFA', '#34D399'];
       const EMOJIS = ['⭐', '🎯', '🔥', '✨', '🚀', '💡', '🎵', '🌟'];
 
@@ -82,33 +98,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         lastAlertAt: undefined,
       };
 
-      const updated = [newInterest, ...interests];
-      setInterests(updated);
-      persist(STORAGE_KEYS.INTERESTS, updated);
-
-      // Generate alerts in background
-      generateAlertsForSpec(spec, 3).then((newAlerts) => {
-        setAlerts((prev) => {
-          const next = [...newAlerts, ...prev];
-          persist(STORAGE_KEYS.ALERTS, next);
-          return next;
-        });
-        setInterests((prev) => {
-          const next = prev.map((i) =>
-            i.id === newInterest.id
-              ? { ...i, alertCount: newAlerts.length, lastAlertAt: new Date().toISOString() }
-              : i
-          );
-          persist(STORAGE_KEYS.INTERESTS, next);
-          return next;
-        });
+      setInterests((prev) => {
+        const next = [newInterest, ...prev];
+        persist(STORAGE_KEYS.INTERESTS, next);
+        return next;
       });
 
-      return spec;
+      const { alerts: newAlerts, steps: collectorSteps } = await generateAlertsForSpec(spec, 3);
+      onSteps?.([...plannerSteps, ...collectorSteps]);
+
+      setAlerts((prev) => {
+        const next = [...newAlerts, ...prev];
+        persist(STORAGE_KEYS.ALERTS, next);
+        return next;
+      });
+      setInterests((prev) => {
+        const next = prev.map((i) =>
+          i.id === newInterest.id
+            ? { ...i, alertCount: newAlerts.length, lastAlertAt: new Date().toISOString() }
+            : i
+        );
+        persist(STORAGE_KEYS.INTERESTS, next);
+        return next;
+      });
+
+      return { spec, steps: [...plannerSteps, ...collectorSteps] };
     } finally {
       setIsProcessingInterest(false);
     }
-  }, [interests]);
+  }, []);
 
   const deleteInterest = useCallback((interestId: string) => {
     setInterests((prev) => {

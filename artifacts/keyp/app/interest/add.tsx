@@ -1,7 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -17,7 +17,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import type { AgentStep } from '@workspace/api-client-react';
 import type { InterestSpec } from '@/types';
+
+const AGENT_LABELS: Record<string, { label: string; desc: string }> = {
+  Planner: { label: 'Planner', desc: '관심사 의도/엔티티 구조화 (GPT-5.4)' },
+  SourceRouter: { label: 'SourceRouter', desc: '최적 소스 우선순위 계산' },
+  Collector: { label: 'Collector', desc: '실시간 웹검색 (Perplexity Sonar)' },
+  Verifier: { label: 'Verifier', desc: '신뢰도/관련성 검증 (Claude Sonnet 4.6)' },
+  Deliverer: { label: 'Deliverer', desc: '신선도×신뢰도 정렬' },
+};
+const AGENT_ORDER = ['Planner', 'SourceRouter', 'Collector', 'Verifier', 'Deliverer'];
 
 const INTENT_LABELS: Record<string, string> = {
   monitor: '모니터링',
@@ -60,7 +70,8 @@ export default function AddInterestScreen() {
   const [text, setText] = useState('');
   const [phase, setPhase] = useState<'input' | 'analyzing' | 'result'>('input');
   const [spec, setSpec] = useState<InterestSpec | null>(null);
-  const [saving, setSaving] = useState(false);
+  const [steps, setSteps] = useState<AgentStep[]>([]);
+  const requestIdRef = useRef(0);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -68,13 +79,24 @@ export default function AddInterestScreen() {
   const handleAnalyze = async () => {
     if (!text.trim()) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const myRequestId = ++requestIdRef.current;
     setPhase('analyzing');
+    setSteps([]);
     try {
-      const result = await addInterest(user?.id ?? 'guest', text.trim());
-      setSpec(result);
+      const result = await addInterest(
+        user?.id ?? 'guest',
+        text.trim(),
+        (incoming) => {
+          if (requestIdRef.current === myRequestId) setSteps(incoming);
+        }
+      );
+      if (requestIdRef.current !== myRequestId) return;
+      setSpec(result.spec);
+      setSteps(result.steps);
       setPhase('result');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
+      if (requestIdRef.current !== myRequestId) return;
       Alert.alert('오류', '분석 중 오류가 발생했습니다. 다시 시도해주세요.');
       setPhase('input');
     }
@@ -85,9 +107,69 @@ export default function AddInterestScreen() {
   };
 
   const handleRetry = () => {
+    requestIdRef.current++;
     setText('');
     setPhase('input');
     setSpec(null);
+    setSteps([]);
+  };
+
+  // Build a server-driven step list. Use the canonical agent order as a hint to
+  // place known agents in expected slots, but also append any unknown agents
+  // emitted by the server so the UI never silently drops a step.
+  const buildStepList = (): { agent: string; completed?: AgentStep; meta: { label: string; desc: string } }[] => {
+    const seen = new Set<string>();
+    const out: { agent: string; completed?: AgentStep; meta: { label: string; desc: string } }[] = [];
+    for (const agent of AGENT_ORDER) {
+      const completed = steps.find((s) => s.agent === agent);
+      out.push({ agent, completed, meta: AGENT_LABELS[agent] ?? { label: agent, desc: '' } });
+      seen.add(agent);
+    }
+    for (const s of steps) {
+      if (!seen.has(s.agent)) {
+        out.push({ agent: s.agent, completed: s, meta: { label: s.agent, desc: '' } });
+        seen.add(s.agent);
+      }
+    }
+    return out;
+  };
+
+  const renderStepList = () => {
+    const items = buildStepList();
+    const completedCount = items.filter((i) => i.completed).length;
+    return items.map(({ agent, completed, meta }, idx) => {
+      const isFirstPending = !completed && idx === completedCount;
+      const dotColor = completed
+        ? completed.status === 'success'
+          ? colors.success
+          : completed.status === 'partial'
+          ? colors.primary
+          : colors.destructive ?? colors.primary
+        : isFirstPending
+        ? colors.primary
+        : colors.border;
+      return (
+        <View
+          key={agent}
+          style={[styles.agentStep, { backgroundColor: colors.card, borderColor: colors.border }]}
+        >
+          <View style={[styles.stepDot, { backgroundColor: dotColor }]} />
+          <View style={{ flex: 1 }}>
+            <View style={styles.stepHeader}>
+              <Text style={[styles.stepName, { color: colors.foreground }]}>{meta.label}</Text>
+              {completed && completed.durationMs !== undefined && (
+                <Text style={[styles.stepDuration, { color: colors.mutedForeground }]}>
+                  {(completed.durationMs / 1000).toFixed(1)}s
+                </Text>
+              )}
+            </View>
+            <Text style={[styles.stepDesc, { color: colors.mutedForeground }]} numberOfLines={2}>
+              {completed?.message ?? meta.desc}
+            </Text>
+          </View>
+        </View>
+      );
+    });
   };
 
   return (
@@ -190,21 +272,10 @@ export default function AddInterestScreen() {
             <Text style={[styles.analyzingTitle, { color: colors.foreground }]}>
               AI 에이전트 분석 중...
             </Text>
-            <View style={styles.agentSteps}>
-              {[
-                { step: 'PlannerAgent', desc: '관심사 구조화 중' },
-                { step: 'SourceRouterAgent', desc: '최적 소스 선정 중' },
-                { step: 'ScoutAgent', desc: '수집 준비 중' },
-              ].map((a, i) => (
-                <View key={a.step} style={[styles.agentStep, { backgroundColor: colors.card, borderColor: colors.border }]}>
-                  <View style={[styles.stepDot, { backgroundColor: i === 0 ? colors.primary : colors.border }]} />
-                  <View>
-                    <Text style={[styles.stepName, { color: colors.foreground }]}>{a.step}</Text>
-                    <Text style={[styles.stepDesc, { color: colors.mutedForeground }]}>{a.desc}</Text>
-                  </View>
-                </View>
-              ))}
-            </View>
+            <Text style={[styles.analyzingSubtitle, { color: colors.mutedForeground }]}>
+              {steps.length}/{buildStepList().length} 단계 완료 · 실제 웹에서 실시간 신호를 수집합니다
+            </Text>
+            <View style={styles.agentSteps}>{renderStepList()}</View>
           </View>
         )}
 
@@ -212,8 +283,12 @@ export default function AddInterestScreen() {
           <View style={styles.resultSection}>
             <View style={[styles.successBadge, { backgroundColor: colors.success + '20' }]}>
               <Feather name="check-circle" size={20} color={colors.success} />
-              <Text style={[styles.successText, { color: colors.success }]}>분석 완료 · 수집 시작</Text>
+              <Text style={[styles.successText, { color: colors.success }]}>
+                분석 완료 · {steps.filter((s) => s.status === 'success').length}/{steps.length} 단계 성공
+              </Text>
             </View>
+
+            <View style={styles.agentSteps}>{renderStepList()}</View>
 
             <View style={[styles.specCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.specTitle, { color: colors.foreground }]}>
@@ -433,7 +508,22 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontFamily: 'Inter_600SemiBold',
   },
+  analyzingSubtitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+    paddingHorizontal: 24,
+  },
   agentSteps: { gap: 10, width: '100%' },
+  stepHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  stepDuration: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
+  },
   agentStep: {
     flexDirection: 'row',
     alignItems: 'center',
