@@ -66,6 +66,15 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - **UI**: `(tabs)/interests.tsx` shows a collector status bar (green dot + interval label + "지금 수집" button + auto-collect Switch). `interest/[id].tsx` shows a per-interest "실시간 수집 중 · 마지막 수집: X분 전" row + "지금 수집" button.
 - New alerts created by realtime sweeps are stamped `createdAt: now`, so the existing `getNewAlertCount`/NEW-badge logic surfaces them automatically.
 - Settings persist to AsyncStorage under `@keyp/autoCollect`.
+
+#### Saved-알림 dummy → real bookmark migration
+- `data/mockData.ts` seeds two saved alerts (`alert_002`, `alert_005`) with placeholder URLs (e.g. `https://youtube.com`, `https://example.com`) so the **저장한 알림** screen isn't empty on first launch.
+- `lib/utils/url.ts` `isPlaceholderUrl()` flags bare-domain URLs from a known set as placeholders; real Perplexity URLs (with paths) are NOT flagged.
+- `AppContext` migrates these dummy bookmarks onto genuine fetched alerts via three coordinated layers (all use functional `setAlerts(prev => ...)` so React serializes against latest state):
+  1. **Sweep-time migration** inside `refreshInterest`: when fresh real-URL alerts arrive, atomically transfer `isSaved`+`feedback` from any same-interest dummy bookmarks onto the freshest real alert (sorted by `createdAt`). Skips migration if no fresh alert has a non-placeholder URL — prevents moving a bookmark onto another placeholder.
+  2. **Eager hydration migration**: a one-shot `useEffect` (gated by `eagerMigrationRanRef`) that runs after `hydrated`. For each dummy bookmark, picks the freshest real-URL alert in the same interest (by `createdAt`) from already-persisted alerts and migrates the bookmark immediately — no API call needed.
+  3. **`upgradeSavedDummies()`**: exposed via context, called from `app/saved.tsx` on mount as a safety net for cold-start sessions. Iterates dummy bookmarks and calls `refreshInterest()` for each interest where no real alert (saved or unsaved) yet exists. The actual swap happens via the sweep-time migration above.
+- The 60s `lastRefreshedAt` cooldown can delay (not block) migration when upstream returns empty/bad-JSON; retries occur on the next sweep cycle.
 - **Types**: `types/index.ts` — InterestSpec, Alert, Match, User, etc.
 - **Mock Data**: `data/mockData.ts` — sample interests, alerts, matches
 

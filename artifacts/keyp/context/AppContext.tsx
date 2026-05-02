@@ -48,6 +48,12 @@ interface AppContextType {
   refreshInterest: (interestId: string) => Promise<RefreshResult>;
   /** Re-run the collector for every active interest, sequentially. */
   refreshAllInterests: () => Promise<RefreshResult[]>;
+  /**
+   * Force-upgrade any saved alerts that still carry placeholder URLs (seeded
+   * dummies) by re-running the collector for their parent interests. Safe to
+   * call repeatedly; no-ops when nothing needs upgrading.
+   */
+  upgradeSavedDummies: () => Promise<void>;
   /** Set of interestIds currently being refreshed. */
   refreshingInterestIds: string[];
   /** ISO timestamp of the last automatic background collection cycle. */
@@ -76,6 +82,28 @@ const DEFAULT_AUTO_COLLECT_INTERVAL_MS = 2 * 60 * 1000;
 const REFRESH_COOLDOWN_MS = 60 * 1000;
 // How many alerts to ask the collector for per refresh sweep.
 const REFRESH_BATCH_SIZE = 5;
+// Placeholder URLs are bare domains (e.g. https://x.com, https://youtube.com,
+// https://example.com) — not real article links. Saved alerts with these
+// URLs come from the seed mock data and need to be upgraded to real ones on
+// first boot so the "저장한 알림" list contains genuine summaries + links.
+const PLACEHOLDER_URL_HOSTS = new Set([
+  'x.com',
+  'twitter.com',
+  'youtube.com',
+  'youtu.be',
+  'reddit.com',
+  'example.com',
+]);
+const isPlaceholderUrl = (url?: string): boolean => {
+  if (!url) return true;
+  try {
+    const u = new URL(url);
+    const path = u.pathname.replace(/\/+$/, '');
+    return PLACEHOLDER_URL_HOSTS.has(u.hostname.toLowerCase()) && path === '';
+  } catch {
+    return true;
+  }
+};
 
 export function AppProvider({ children }: { children: React.ReactNode }) {
   const [interests, setInterests] = useState<Interest[]>(MOCK_INTERESTS);
@@ -359,7 +387,48 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         const nowIso = new Date().toISOString();
         if (fresh.length > 0) {
-          setAlerts((prev) => [...fresh, ...prev]);
+          setAlerts((prev) => {
+            // Migrate any dummy bookmarks (saved alerts with placeholder URLs
+            // — e.g. https://youtube.com from the seed mock data) for THIS
+            // interest onto the freshest *real-URL* alert so the saved-알림
+            // list gets a genuine summary + link. We only migrate when at
+            // least one fresh alert has a non-placeholder URL; otherwise we
+            // keep the dummy bookmarks intact and wait for a better sweep.
+            const realFresh = fresh.filter(
+              (a) => !isPlaceholderUrl(a.source?.url ?? a.originalUrl)
+            );
+            const dummies = prev.filter(
+              (a) =>
+                a.interestId === interestId &&
+                a.isSaved &&
+                isPlaceholderUrl(a.source?.url ?? a.originalUrl)
+            );
+            if (dummies.length === 0 || realFresh.length === 0) {
+              return [...fresh, ...prev];
+            }
+            // Pick the freshest real alert by createdAt as the migration
+            // target. Preserve any dummy's feedback (prefer the most recent
+            // dummy with a feedback set).
+            const target = [...realFresh].sort(
+              (a, b) =>
+                new Date(b.createdAt).getTime() -
+                new Date(a.createdAt).getTime()
+            )[0];
+            const preservedFeedback =
+              dummies.find((d) => d.feedback)?.feedback ?? undefined;
+            const dummyIds = new Set(dummies.map((d) => d.id));
+            const freshToAdd = fresh.map((a) =>
+              a.id === target.id
+                ? { ...a, isSaved: true, feedback: preservedFeedback }
+                : a
+            );
+            const cleared = prev.map((a) =>
+              dummyIds.has(a.id)
+                ? { ...a, isSaved: false, feedback: undefined }
+                : a
+            );
+            return [...freshToAdd, ...cleared];
+          });
         }
         setInterests((prev) =>
           prev.map((i) =>
@@ -409,6 +478,83 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     }
   }, [refreshInterest]);
 
+  // Force-fetch a fresh batch for every interest that still has a dummy
+  // saved bookmark, so the sweep-time migration inside `refreshInterest`
+  // can promote a real alert into the saved list. Used by the /saved screen
+  // on mount as a safety net for cases where the background sweep hasn't
+  // completed (e.g. very short sessions).
+  const upgradeSavedDummies = useCallback(async (): Promise<void> => {
+    const dummies = alertsRef.current.filter(
+      (a) => a.isSaved && isPlaceholderUrl(a.source?.url ?? a.originalUrl)
+    );
+    if (dummies.length === 0) return;
+    const interestIds = Array.from(new Set(dummies.map((d) => d.interestId)));
+    for (const id of interestIds) {
+      // Skip if a real alert (saved or not) is ALREADY available — eager
+      // migration or a prior sweep handles it. Avoids needless API churn.
+      const hasReal = alertsRef.current.some(
+        (a) =>
+          a.interestId === id &&
+          !isPlaceholderUrl(a.source?.url ?? a.originalUrl)
+      );
+      if (hasReal) continue;
+      try {
+        await refreshInterest(id);
+      } catch {}
+    }
+  }, [refreshInterest]);
+
+  // Eager bookmark migration: as soon as the app hydrates, look at the
+  // currently-loaded alerts and, for any saved alert that still carries a
+  // placeholder URL (a leftover dummy from the seed mock data), try to
+  // migrate the bookmark onto a genuine alert that's ALREADY been collected
+  // for the same interest in a prior session and persisted in storage. This
+  // makes the saved-알림 list show real summaries+links immediately on boot
+  // without waiting for the next 60s sweep cycle. The sweep-time migration
+  // inside `refreshInterest` covers the cold-start case where no real alerts
+  // exist yet.
+  const eagerMigrationRanRef = useRef(false);
+  useEffect(() => {
+    if (!hydrated || eagerMigrationRanRef.current) return;
+    eagerMigrationRanRef.current = true;
+    setAlerts((prev) => {
+      const dummies = prev.filter(
+        (a) => a.isSaved && isPlaceholderUrl(a.source?.url ?? a.originalUrl)
+      );
+      if (dummies.length === 0) return prev;
+      let next = prev;
+      let changed = false;
+      for (const dummy of dummies) {
+        // Pick the freshest real alert (by createdAt) in the same interest
+        // that's not the dummy itself and has a real (non-placeholder) URL.
+        const candidates = next.filter(
+          (a) =>
+            a.id !== dummy.id &&
+            a.interestId === dummy.interestId &&
+            !isPlaceholderUrl(a.source?.url ?? a.originalUrl)
+        );
+        if (candidates.length === 0) continue;
+        const replacement = candidates.reduce((best, cur) =>
+          new Date(cur.createdAt).getTime() >
+          new Date(best.createdAt).getTime()
+            ? cur
+            : best
+        );
+        next = next.map((a) => {
+          if (a.id === dummy.id) {
+            return { ...a, isSaved: false, feedback: undefined };
+          }
+          if (a.id === replacement.id) {
+            return { ...a, isSaved: true, feedback: dummy.feedback };
+          }
+          return a;
+        });
+        changed = true;
+      }
+      return changed ? next : prev;
+    });
+  }, [hydrated]);
+
   // Background polling: while enabled, sweep every `autoCollectIntervalMs`.
   // The first sweep fires on mount so the UI feels live immediately.
   useEffect(() => {
@@ -453,6 +599,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         unreadCount,
         refreshInterest,
         refreshAllInterests,
+        upgradeSavedDummies,
         refreshingInterestIds,
         lastBackgroundRunAt,
         autoCollectEnabled,

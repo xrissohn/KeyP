@@ -1,6 +1,6 @@
 import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
@@ -12,7 +12,15 @@ export default function SavedScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { savedAlerts } = useApp();
+  const { savedAlerts, upgradeSavedDummies } = useApp();
+
+  // On mount, force-upgrade any saved alerts still pointing at placeholder
+  // URLs (seeded dummies). This kicks the collector for the relevant
+  // interests so the sweep-time migration in AppContext can promote a real
+  // alert into the saved list. No-op when there's nothing to upgrade.
+  useEffect(() => {
+    upgradeSavedDummies();
+  }, [upgradeSavedDummies]);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
