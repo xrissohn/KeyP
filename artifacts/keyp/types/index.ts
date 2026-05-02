@@ -57,6 +57,8 @@ export interface Interest {
   alertCount: number;
   lastAlertAt?: string;
   lastViewedAt?: string;
+  /** Last time the realtime collector ran for this interest (ISO). */
+  lastRefreshedAt?: string;
   color: string;
   emoji: string;
 }

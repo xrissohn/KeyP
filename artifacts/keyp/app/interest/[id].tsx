@@ -1,12 +1,32 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
 import React, { useEffect } from 'react';
-import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  ActivityIndicator,
+  Alert as RNAlert,
+  FlatList,
+  Platform,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
 import EmptyState from '@/components/EmptyState';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+
+function relativeTime(iso: string | null | undefined): string {
+  if (!iso) return '아직';
+  const diffMs = Date.now() - new Date(iso).getTime();
+  const m = Math.floor(diffMs / 60_000);
+  if (m < 1) return '방금';
+  if (m < 60) return `${m}분 전`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}시간 전`;
+  return `${Math.floor(h / 24)}일 전`;
+}
 
 const INTENT_LABELS: Record<string, string> = {
   monitor: '모니터링',
@@ -31,7 +51,17 @@ export default function InterestDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { interests, alerts, deleteInterest, markInterestViewed, getNewAlertCount } = useApp();
+  const {
+    interests,
+    alerts,
+    deleteInterest,
+    markInterestViewed,
+    getNewAlertCount,
+    refreshInterest,
+    refreshingInterestIds,
+    autoCollectEnabled,
+  } = useApp();
+  const isRefreshing = id ? refreshingInterestIds.includes(id) : false;
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -63,6 +93,20 @@ export default function InterestDetailScreen() {
   }
 
   const spec = interest.spec;
+
+  const onPressRefresh = async () => {
+    if (!id || isRefreshing) return;
+    const result = await refreshInterest(id);
+    if (Platform.OS !== 'web') {
+      const msg =
+        result.newAlertCount > 0
+          ? `새 알림 ${result.newAlertCount}건을 가져왔어요.`
+          : result.totalCollected === 0
+            ? '잠시 후 다시 시도해주세요. (쿨다운)'
+            : '아직 새로운 소식이 없어요.';
+      RNAlert.alert('실시간 수집', msg);
+    }
+  };
 
   const renderHeader = () => (
     <View>
@@ -124,6 +168,47 @@ export default function InterestDetailScreen() {
             </View>
           ))}
         </View>
+      </View>
+
+      <View style={[styles.collectStatus, { backgroundColor: colors.card, borderColor: colors.border }]}>
+        <View style={styles.collectStatusLeft}>
+          <View
+            style={[
+              styles.statusDot,
+              { backgroundColor: autoCollectEnabled ? '#22C55E' : '#9CA3AF' },
+            ]}
+          />
+          <View>
+            <Text style={[styles.collectStatusTitle, { color: colors.foreground }]}>
+              {autoCollectEnabled ? '실시간 수집 중' : '자동 수집 꺼짐'}
+            </Text>
+            <Text style={[styles.collectStatusSub, { color: colors.mutedForeground }]}>
+              마지막 수집: {relativeTime(interest.lastRefreshedAt)}
+            </Text>
+          </View>
+        </View>
+        <TouchableOpacity
+          onPress={onPressRefresh}
+          disabled={isRefreshing}
+          style={[
+            styles.refreshBtn,
+            {
+              backgroundColor: isRefreshing ? colors.secondary : interest.color + '20',
+              borderColor: interest.color + '50',
+              opacity: isRefreshing ? 0.6 : 1,
+            },
+          ]}
+          activeOpacity={0.8}
+        >
+          {isRefreshing ? (
+            <ActivityIndicator size="small" color={interest.color} />
+          ) : (
+            <Feather name="refresh-cw" size={14} color={interest.color} />
+          )}
+          <Text style={[styles.refreshBtnText, { color: interest.color }]}>
+            {isRefreshing ? '수집 중...' : '지금 수집'}
+          </Text>
+        </TouchableOpacity>
       </View>
 
       {interestAlerts.length > 0 && (
@@ -343,6 +428,49 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_700Bold',
     color: '#fff',
     letterSpacing: 0.3,
+  },
+  collectStatus: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    borderRadius: 14,
+    borderWidth: 1,
+    paddingHorizontal: 14,
+    paddingVertical: 12,
+    marginBottom: 16,
+  },
+  collectStatusLeft: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    flex: 1,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  collectStatusTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  collectStatusSub: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 1,
+  },
+  refreshBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 10,
+    borderWidth: 1,
+  },
+  refreshBtnText: {
+    fontSize: 12,
+    fontFamily: 'Inter_600SemiBold',
   },
   emptyWrap: { height: 300 },
 });

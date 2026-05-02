@@ -56,6 +56,16 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - Tapping a card opens `app/interest/[id].tsx` which shows the interest spec + a newest-first **알림 히스토리** of all alerts for that interest. A `useEffect` calls `markInterestViewed(id)` ~600 ms after mount so the NEW pill is visible briefly before being cleared.
 - `components/AlertCard.tsx` shows a "**출처 보기 · <source name>**" button when `alert.source.url` (or `originalUrl`) is present; tapping it calls `Linking.openURL(...)` to leave the app for the original source.
 - **Critical invariant**: `Interest.id === Interest.spec.id`. Alerts reference `spec.id` as their `interestId`, so `AppContext.addInterest` assigns `newInterest.id = spec.id` to keep the detail screen filter (`alerts.filter(a => a.interestId === id)`) working. Diverging these IDs makes the history view permanently empty.
+
+#### Realtime collection (background polling)
+- `AppContext` exposes `refreshInterest(id)`, `refreshAllInterests()`, `refreshingInterestIds`, `lastBackgroundRunAt`, `autoCollectEnabled`, `autoCollectIntervalMs`.
+- A `useEffect` runs a background sweep every `autoCollectIntervalMs` (default **2 minutes**) that sequentially refreshes every active interest. The first sweep fires 5s after mount.
+- **Dedup**: incoming alerts are filtered against existing alerts for the same `interestId` by `source.url` (preferred) and normalized title (fallback). Only genuinely new items are appended.
+- **Throttling**: a per-interest `lastRefreshedAt` cooldown (60s) and a single `sweepRunningRef` mutex prevent overlapping or concurrent fetches.
+- **Stale-state safety**: `interestsRef` / `alertsRef` mirror the latest state so the polling closure never operates on a stale snapshot.
+- **UI**: `(tabs)/interests.tsx` shows a collector status bar (green dot + interval label + "지금 수집" button + auto-collect Switch). `interest/[id].tsx` shows a per-interest "실시간 수집 중 · 마지막 수집: X분 전" row + "지금 수집" button.
+- New alerts created by realtime sweeps are stamped `createdAt: now`, so the existing `getNewAlertCount`/NEW-badge logic surfaces them automatically.
+- Settings persist to AsyncStorage under `@keyp/autoCollect`.
 - **Types**: `types/index.ts` — InterestSpec, Alert, Match, User, etc.
 - **Mock Data**: `data/mockData.ts` — sample interests, alerts, matches
 
