@@ -1,5 +1,10 @@
 import { Router, type IRouter } from "express";
 import { probeUrl, assertSafeUrl } from "./agents";
+import {
+  addToBlacklist,
+  getRecentBlacklistedEntries,
+  getBlacklistSize,
+} from "../services/deadUrlBlacklist";
 
 const router: IRouter = Router();
 
@@ -48,11 +53,24 @@ router.get("/redirect", async (req, res) => {
     res.redirect(302, u);
     return;
   }
+  // Persist dead-URL signal so future generate-alerts runs skip this URL
+  // entirely. addToBlacklist itself ignores transient/soft-deny reasons.
+  if (probe.reason) {
+    void addToBlacklist(u, probe.reason);
+  }
   req.log.info(
     { url: u, reason: probe.reason, fallbackQuery: q },
     "[redirect] dead link → fallback search",
   );
   res.redirect(302, fallbackSearch);
+});
+
+// Read-only debug endpoint listing recent dead-URL blacklist entries.
+router.get("/redirect/blacklist", async (req, res) => {
+  const rawLimit = typeof req.query["limit"] === "string" ? Number(req.query["limit"]) : 50;
+  const limit = Number.isFinite(rawLimit) && rawLimit > 0 ? Math.min(500, Math.floor(rawLimit)) : 50;
+  const recent = await getRecentBlacklistedEntries(limit);
+  res.json({ count: getBlacklistSize(), recent });
 });
 
 export default router;

@@ -17,6 +17,11 @@ import { openrouter } from "@workspace/integrations-openrouter-ai";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
+import {
+  isBlacklisted,
+  addToBlacklist,
+  getRecentBlacklistedHosts,
+} from "../services/deadUrlBlacklist";
 
 const router: IRouter = Router();
 
@@ -163,10 +168,14 @@ async function probeUrl(
       },
     });
     if (res.status === 404 || res.status === 410) {
-      return { ok: false, reason: `status_${res.status}` };
+      const reason = `status_${res.status}`;
+      void addToBlacklist(url, reason);
+      return { ok: false, reason };
     }
     if (res.status >= 500 && res.status < 600) {
-      return { ok: false, reason: `status_${res.status}` };
+      const reason = `status_${res.status}`;
+      void addToBlacklist(url, reason);
+      return { ok: false, reason };
     }
     if (res.status >= 400 && res.status !== 401 && res.status !== 403 && res.status !== 405 && res.status !== 429) {
       return { ok: false, reason: `status_${res.status}` };
@@ -191,7 +200,10 @@ async function probeUrl(
         const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
         const sample = buf.toString("utf8", 0, Math.min(buf.byteLength, MAX));
         for (const re of SOFT_404_MARKERS) {
-          if (re.test(sample)) return { ok: false, reason: "soft_404" };
+          if (re.test(sample)) {
+            void addToBlacklist(url, "soft_404");
+            return { ok: false, reason: "soft_404" };
+          }
         }
       }
     } else {
@@ -221,8 +233,19 @@ async function pruneUnreachableCandidates<
   log: { info: (o: object, m: string) => void },
 ): Promise<T[]> {
   if (cands.length === 0) return cands;
-  const checks = await Promise.all(
+  // Pre-filter using the persistent dead-URL blacklist so we never spend
+  // probe latency on URLs we've already proven dead.
+  const blacklistChecked = await Promise.all(
     cands.map(async (c) => ({
+      c,
+      blacklisted: c.url ? await isBlacklisted(c.url) : false,
+    })),
+  );
+  const droppedFromBlacklist = blacklistChecked.filter((x) => x.blacklisted).map((x) => x.c);
+  const survivors = blacklistChecked.filter((x) => !x.blacklisted).map((x) => x.c);
+
+  const checks = await Promise.all(
+    survivors.map(async (c) => ({
       c,
       ok: c.url ? await isUrlReachable(c.url) : false,
       url: c.url,
@@ -230,14 +253,19 @@ async function pruneUnreachableCandidates<
   );
   const kept = checks.filter((x) => x.ok).map((x) => x.c);
   const dropped = checks.filter((x) => !x.ok);
-  if (dropped.length > 0) {
+  if (dropped.length > 0 || droppedFromBlacklist.length > 0) {
     log.info(
       {
         kept: kept.length,
         dropped: dropped.length,
-        droppedUrls: dropped.map((d) => ({
+        droppedFromBlacklist: droppedFromBlacklist.length,
+        droppedUrls: dropped.slice(0, 3).map((d) => ({
           url: d.url ?? null,
           title: d.c.title.slice(0, 80),
+        })),
+        blacklistExamples: droppedFromBlacklist.slice(0, 3).map((d) => ({
+          url: d.url ?? null,
+          title: d.title.slice(0, 80),
         })),
       },
       "[url-gate] dropped candidates with missing/unreachable source URL",
@@ -557,6 +585,10 @@ router.post("/agents/generate-alerts", async (req, res) => {
         .filter(Boolean)
         .join(" / ");
       const sourcePref = spec.suggestedSources.join(", ");
+      const deadHosts = await getRecentBlacklistedHosts(30);
+      const deadHostsLine = deadHosts.length > 0
+        ? `\nKNOWN-DEAD HOSTS (avoid items hosted on these domains): ${deadHosts.join(", ")}`
+        : "";
       const strategyBlock =
         (spec.searchStrategy?.length ?? 0) > 0
           ? spec.searchStrategy!
@@ -619,7 +651,7 @@ Location: ${spec.locationScope ?? "(no location restriction)"}
 Urgency: ${spec.urgency}
 User goal: ${spec.desiredOutcome}
 General source preference order (fallback only): ${sourcePref}
-Generic query hints (fallback only): ${queryHints}
+Generic query hints (fallback only): ${queryHints}${deadHostsLine}
 
 INVESTIGATION PLAN — execute in this order:
 ${strategyBlock}
@@ -697,7 +729,11 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
           const knownBlock = knownItems.length
             ? `\n\nALREADY-DELIVERED STORIES (do NOT repeat any of these, even with different wording or a different source URL):\n${knownItems.map((k, i) => `${i + 1}. ${k.title} — ${k.summary}`).join("\n")}`
             : "";
-          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}`;
+          const backupDeadHosts = await getRecentBlacklistedHosts(30);
+          const backupDeadHostsBlock = backupDeadHosts.length > 0
+            ? `\n\nKNOWN-DEAD HOSTS (avoid items hosted on these domains): ${backupDeadHosts.join(", ")}`
+            : "";
+          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}${backupDeadHostsBlock}`;
           const backup = await openrouter.chat.completions.create({
             model: COLLECTOR_MODEL,
             max_tokens: COLLECTOR_MAX_TOKENS,
