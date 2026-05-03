@@ -22,14 +22,6 @@ import type { InterestSpec } from '@/types';
 
 const AGENT_ORDER = ['Planner', 'SourceRouter', 'Collector', 'Verifier', 'Deliverer'];
 
-const SOURCE_LABELS: Record<string, string> = {
-  youtube: 'YouTube',
-  twitter: 'Twitter/X',
-  reddit: 'Reddit',
-  rss: 'RSS/뉴스',
-  match: 'KeyP 매칭',
-};
-
 const EXAMPLE_KEYS = [
   'interest.add.example.0',
   'interest.add.example.1',
@@ -315,7 +307,7 @@ export default function AddInterestScreen() {
                     <View key={src} style={[styles.sourceItem, { backgroundColor: colors.secondary }]}>
                       <Text style={[styles.sourceRank, { color: colors.primary }]}>{i + 1}</Text>
                       <Text style={[styles.sourceText, { color: colors.foreground }]}>
-                        {SOURCE_LABELS[src] ?? src}
+                        {t(`sourceLabel.${src}`)}
                       </Text>
                     </View>
                   ))}

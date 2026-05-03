@@ -176,16 +176,26 @@ export default function ProfileScreen() {
               })}
             </View>
           )}
-          <MenuItem icon="bell" label={t('profile.item.notifications')} onPress={() => {}} />
-          <MenuItem icon="shield" label={t('profile.item.report')} onPress={() => {}} />
-          <MenuItem icon="lock" label={t('profile.item.privacy')} onPress={() => {}} />
-          <MenuItem icon="file-text" label={t('profile.item.terms')} onPress={() => {}} />
         </View>
 
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{t('profile.section.info')}</Text>
-          <MenuItem icon="info" label={t('profile.item.appVersion')} onPress={() => {}} value="1.0.0" />
-          <MenuItem icon="cpu" label={t('profile.item.agentStatus')} onPress={() => {}} value={t('profile.item.agentStatusValue')} />
+          <View style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+            <View style={[styles.menuIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Feather name="info" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.menuLabel, { color: colors.foreground }]}>{t('profile.item.appVersion')}</Text>
+            <View style={{ flex: 1 }} />
+            <Text style={[styles.menuValue, { color: colors.mutedForeground }]}>1.0.0</Text>
+          </View>
+          <View style={[styles.menuItem, { borderBottomColor: colors.border }]}>
+            <View style={[styles.menuIcon, { backgroundColor: colors.primary + '18' }]}>
+              <Feather name="cpu" size={16} color={colors.primary} />
+            </View>
+            <Text style={[styles.menuLabel, { color: colors.foreground }]}>{t('profile.item.agentStatus')}</Text>
+            <View style={{ flex: 1 }} />
+            <Text style={[styles.menuValue, { color: colors.mutedForeground }]}>{t('profile.item.agentStatusValue')}</Text>
+          </View>
         </View>
 
         <TouchableOpacity

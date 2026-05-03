@@ -6,6 +6,7 @@ import {
   Linking,
   Platform,
   ScrollView,
+  Share,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -31,13 +32,17 @@ export default function AlertDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { alerts, toggleSaveAlert, setAlertFeedback, hideAlert } = useApp();
-  const { t } = useI18n();
+  const { alerts, toggleSaveAlert, setAlertFeedback, hideAlert, markInterestViewed } = useApp();
+  const { language, t } = useI18n();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
   const alert = alerts.find((a) => a.id === id);
+
+  React.useEffect(() => {
+    if (alert) markInterestViewed(alert.interestId);
+  }, [alert, markInterestViewed]);
 
   if (!alert) {
     return (
@@ -53,7 +58,35 @@ export default function AlertDetailScreen() {
 
   const formatDate = (iso: string) => {
     const d = new Date(iso);
-    return `${d.getFullYear()}.${d.getMonth() + 1}.${d.getDate()} ${d.getHours()}:${String(d.getMinutes()).padStart(2, '0')}`;
+    try {
+      const locale = language === 'ko' ? 'ko-KR' : 'en-US';
+      return new Intl.DateTimeFormat(locale, {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(d);
+    } catch {
+      return d.toISOString();
+    }
+  };
+
+  const handleShare = async () => {
+    if (!alert) return;
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    const url = alert.originalUrl ?? alert.source.url ?? '';
+    const message = t('alert.shareMessage', { title: alert.title, url });
+    try {
+      const result = await Share.share({ message, title: alert.title, url });
+      if (result.action === Share.dismissedAction) return;
+    } catch {
+      // Native share unavailable (e.g. web) — fall back to opening the source
+      if (url) {
+        const target = buildSafeOpenUrl(url, `${alert.interestName} ${alert.title}`);
+        if (target) Linking.openURL(target).catch(() => {});
+      }
+    }
   };
 
   return (
@@ -66,20 +99,31 @@ export default function AlertDetailScreen() {
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </TouchableOpacity>
-        <TouchableOpacity
-          onPress={() => {
-            Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-            toggleSaveAlert(alert.id);
-          }}
-          style={[styles.saveBtn, { backgroundColor: colors.secondary }]}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Feather
-            name="bookmark"
-            size={18}
-            color={alert.isSaved ? colors.primary : colors.foreground}
-          />
-        </TouchableOpacity>
+        <View style={styles.navActions}>
+          <TouchableOpacity
+            onPress={handleShare}
+            style={[styles.saveBtn, { backgroundColor: colors.secondary }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('alert.share')}
+          >
+            <Feather name="share-2" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              toggleSaveAlert(alert.id);
+            }}
+            style={[styles.saveBtn, { backgroundColor: colors.secondary }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather
+              name="bookmark"
+              size={18}
+              color={alert.isSaved ? colors.primary : colors.foreground}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
@@ -222,6 +266,11 @@ const styles = StyleSheet.create({
     borderRadius: 18,
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  navActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
   },
   scroll: {
     paddingHorizontal: 20,

@@ -22,7 +22,7 @@ export default function FeedScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { alerts, interests } = useApp();
+  const { alerts, interests, refreshAllInterests, markInterestViewed } = useApp();
   const { t } = useI18n();
   const [selectedInterest, setSelectedInterest] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
@@ -31,6 +31,11 @@ export default function FeedScreen() {
   const handleLogoPress = () => {
     setSelectedInterest(null);
     listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
+
+  const handleSelectInterest = (id: string | null) => {
+    setSelectedInterest(id);
+    if (id) markInterestViewed(id);
   };
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
@@ -42,8 +47,13 @@ export default function FeedScreen() {
 
   const handleRefresh = async () => {
     setRefreshing(true);
-    await new Promise((r) => setTimeout(r, 1000));
-    setRefreshing(false);
+    try {
+      await refreshAllInterests();
+    } catch {
+      // swallow; the interest cards surface per-source errors
+    } finally {
+      setRefreshing(false);
+    }
   };
 
   const renderHeader = () => (
@@ -104,7 +114,7 @@ export default function FeedScreen() {
                   borderColor: isSelected ? colors.primary : colors.border,
                 },
               ]}
-              onPress={() => setSelectedInterest(item.id ?? null)}
+              onPress={() => handleSelectInterest(item.id ?? null)}
               activeOpacity={0.8}
             >
               {item.emoji && (

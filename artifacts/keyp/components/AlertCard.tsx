@@ -2,7 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React from 'react';
-import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert as RNAlert, Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ConfidenceBadge from '@/components/ConfidenceBadge';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
@@ -26,9 +26,17 @@ interface Props {
 export default function AlertCard({ alert, showInterestTag = true }: Props) {
   const colors = useColors();
   const router = useRouter();
-  const { toggleSaveAlert, setAlertFeedback, hideAlert } = useApp();
+  const { toggleSaveAlert, setAlertFeedback, hideAlert, interests } = useApp();
   const { language, t } = useI18n();
   const sourceConfig = SOURCE_ICONS[alert.source.type];
+
+  const isNew = React.useMemo(() => {
+    const interest = interests.find((i) => i.id === alert.interestId);
+    const cutoff = interest?.lastViewedAt
+      ? new Date(interest.lastViewedAt).getTime()
+      : 0;
+    return new Date(alert.createdAt).getTime() > cutoff;
+  }, [interests, alert.interestId, alert.createdAt]);
 
   const handlePress = () => {
     router.push({ pathname: '/alert/[id]', params: { id: alert.id } });
@@ -51,7 +59,18 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
 
   const handleHide = () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    hideAlert(alert.id);
+    RNAlert.alert(
+      t('alert.hide.confirm.title'),
+      t('alert.hide.confirm.body'),
+      [
+        { text: t('common.cancel'), style: 'cancel' },
+        {
+          text: t('alert.feedback.hide'),
+          style: 'destructive',
+          onPress: () => hideAlert(alert.id),
+        },
+      ],
+    );
   };
 
   const sourceUrl = alert.source.url ?? alert.originalUrl;
@@ -102,6 +121,11 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
             </>
           )}
         </View>
+        {isNew && (
+          <View style={[styles.newPill, { backgroundColor: colors.destructive ?? '#EF4444' }]}>
+            <Text style={styles.newPillText}>{t('alert.new')}</Text>
+          </View>
+        )}
         <Text style={[styles.time, { color: colors.mutedForeground }]}>
           {formatTime(alert.createdAt)}
         </Text>
@@ -110,7 +134,7 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
       <Text style={[styles.title, { color: colors.foreground }]} numberOfLines={2}>
         {alert.title}
       </Text>
-      <Text style={[styles.summary, { color: colors.mutedForeground }]} numberOfLines={2}>
+      <Text style={[styles.summary, { color: colors.mutedForeground }]} numberOfLines={3}>
         {alert.summary}
       </Text>
 
@@ -204,6 +228,8 @@ const styles = StyleSheet.create({
   dot: { fontSize: 12 },
   interestTag: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   time: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  newPill: { paddingHorizontal: 6, paddingVertical: 2, borderRadius: 6, marginRight: 6 },
+  newPillText: { fontSize: 9, fontFamily: 'Inter_700Bold', color: '#fff', letterSpacing: 0.4 },
   title: { fontSize: 15, fontFamily: 'Inter_600SemiBold', lineHeight: 22, marginBottom: 6 },
   summary: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19, marginBottom: 12 },
   metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },

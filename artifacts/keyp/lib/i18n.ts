@@ -75,6 +75,8 @@ export const STRINGS: Record<string, Record<Language, string>> = {
   'feed.subtitle': { ko: '실시간 관심사 알림', en: 'Real-time interest alerts' },
   'feed.home': { ko: '홈으로', en: 'Home' },
   'feed.allFilter': { ko: '전체', en: 'All' },
+  'feed.refreshing': { ko: '새로고침 중…', en: 'Refreshing…' },
+  'feed.markedRead': { ko: '읽음 처리됨', en: 'Marked as read' },
   'feed.empty.title': { ko: '아직 알림이 없어요', en: 'No alerts yet' },
   'feed.empty.subtitle': {
     ko: '관심사를 등록하면 AI가 관련 소식을 먼저 찾아드립니다',
@@ -292,6 +294,16 @@ export const STRINGS: Record<string, Record<Language, string>> = {
 
   // ─── Alert card / detail ───────────────────────────────────────────
   'alert.openSource': { ko: '출처 보기 · {name}', en: 'Open source · {name}' },
+  'alert.share': { ko: '공유', en: 'Share' },
+  'alert.shareMessage': { ko: '{title}\n\n{url}\n\nKeyP에서 공유', en: '{title}\n\n{url}\n\nShared from KeyP' },
+  'alert.new': { ko: 'NEW', en: 'NEW' },
+  'alert.hide.confirm.title': { ko: '이 알림을 숨길까요?', en: 'Hide this alert?' },
+  'alert.hide.confirm.body': { ko: '비슷한 내용을 덜 보여드릴게요.', en: 'We\'ll show you less like this.' },
+  'sourceLabel.youtube': { ko: 'YouTube', en: 'YouTube' },
+  'sourceLabel.twitter': { ko: 'Twitter/X', en: 'Twitter/X' },
+  'sourceLabel.reddit': { ko: 'Reddit', en: 'Reddit' },
+  'sourceLabel.rss': { ko: 'RSS·뉴스', en: 'RSS / News' },
+  'sourceLabel.match': { ko: 'KeyP 매칭', en: 'KeyP Match' },
   'alert.openOriginal': { ko: '원문 보기 — {name}', en: 'Open original — {name}' },
   'alert.notFound': { ko: '알림을 찾을 수 없습니다', en: 'Alert not found' },
   'alert.summary': { ko: '요약', en: 'Summary' },
