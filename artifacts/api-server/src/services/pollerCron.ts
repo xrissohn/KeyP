@@ -74,8 +74,11 @@ async function sweepOne(rowInterestId: string): Promise<void> {
     title: r.title,
     summary: r.title,
   }));
-  // Fetch a small batch so dedup has multiple candidates per sweep.
-  const result = await callGenerateAlerts(spec, 3, existingAlertSummaries);
+  // Fetch exactly ONE per sweep — KeyP's "딱 하나만" rule. count=1 also
+  // activates the server-side seed-rescue path so a Verifier-filtered batch
+  // still surfaces the freshest novel candidate, and the final dedup gate
+  // compares it against existingAlertSummaries built from prior seen_alerts.
+  const result = await callGenerateAlerts(spec, 1, existingAlertSummaries);
   const now = new Date();
 
   // Always advance lastSweepAt — even on failure — so a permanently-broken
