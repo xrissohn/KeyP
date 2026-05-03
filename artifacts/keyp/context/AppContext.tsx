@@ -156,6 +156,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   // Refs needed inside the polling timer so the interval doesn't capture stale state.
   const interestsRef = useRef(interests);
   const alertsRef = useRef(alerts);
+  const planRef = useRef<PlanTier>('free');
   const sweepRunningRef = useRef(false);
   // Synchronous per-interest in-flight lock. We need this *in addition* to the
   // `refreshingInterestIds` React state because state updates are async — two
@@ -169,6 +170,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     alertsRef.current = alerts;
   }, [alerts]);
+  useEffect(() => {
+    planRef.current = plan;
+  }, [plan]);
 
   useEffect(() => {
     loadFromStorage();
@@ -325,7 +329,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           spec,
           1,
           [],
-          seedDeviceId
+          seedDeviceId,
+          planRef.current
         );
         onSteps?.([...plannerSteps, ...collectorSteps]);
 
@@ -495,7 +500,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           interest.spec,
           REFRESH_BATCH_SIZE,
           existingSummaries,
-          refreshDeviceId
+          refreshDeviceId,
+          planRef.current
         );
 
         // Client-side dedupe: URL match, normalized-title match, AND a token

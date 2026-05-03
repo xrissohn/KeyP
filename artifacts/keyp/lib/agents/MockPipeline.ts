@@ -123,7 +123,8 @@ export async function generateAlertsForSpec(
   spec: InterestSpec,
   count = 3,
   existingAlertSummaries: { title: string; summary: string }[] = [],
-  deviceId?: string
+  deviceId?: string,
+  plan?: 'free' | 'basic' | 'pro' | 'power'
 ): Promise<GenerateAlertsWithStepsResult> {
   try {
     const result = await callGenerateAlerts(
@@ -143,7 +144,9 @@ export async function generateAlertsForSpec(
         searchStrategy: spec.searchStrategy,
       },
       count,
-      existingAlertSummaries
+      existingAlertSummaries,
+      deviceId,
+      plan
     );
     const alerts = (result.alerts ?? []).map((a): Alert => {
       const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)

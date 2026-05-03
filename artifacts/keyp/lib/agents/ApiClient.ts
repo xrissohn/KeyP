@@ -90,11 +90,18 @@ export async function callGenerateAlerts(
   spec: InterestSpecData,
   count = 3,
   existingAlertSummaries: { title: string; summary: string }[] = [],
-  deviceId?: string
+  deviceId?: string,
+  plan?: PlanTier
 ): Promise<GeneratedAlertsResult> {
   return postJson<GeneratedAlertsResult>(
     '/agents/generate-alerts',
-    { spec, count, existingAlertSummaries, ...(deviceId ? { deviceId } : {}) },
+    {
+      spec,
+      count,
+      existingAlertSummaries,
+      ...(deviceId ? { deviceId } : {}),
+      ...(plan ? { plan } : {}),
+    },
     45000
   );
 }

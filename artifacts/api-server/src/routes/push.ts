@@ -20,6 +20,7 @@ import {
   setPlanForDevice,
   tryBoost,
   getBoostStatus,
+  getPlanForDevice,
   planInterestCap,
   type PlanTier,
 } from "../services/pollerCron";
@@ -63,13 +64,8 @@ router.post("/push/track-interest", async (req, res) => {
   // poll slower than their existing ones until the next /push/set-plan).
   let mergedSpec: typeof spec & { plan?: PlanTier } = spec;
   if (!(spec as { plan?: PlanTier }).plan) {
-    const [existing] = await db
-      .select({ spec: trackedInterestsTable.spec })
-      .from(trackedInterestsTable)
-      .where(eq(trackedInterestsTable.deviceId, deviceId))
-      .limit(1);
-    const inheritedPlan = (existing?.spec as { plan?: PlanTier } | undefined)?.plan;
-    if (inheritedPlan && VALID_PLANS.includes(inheritedPlan)) {
+    const inheritedPlan = await getPlanForDevice(deviceId);
+    if (VALID_PLANS.includes(inheritedPlan)) {
       mergedSpec = { ...spec, plan: inheritedPlan };
     }
   }
@@ -168,12 +164,13 @@ router.post("/push/set-plan", async (req, res) => {
     return;
   }
   const updatedCount = await setPlanForDevice(deviceId, plan as PlanTier);
+  const boost = await getBoostStatus(deviceId, plan as PlanTier);
   res.json({
     ok: true,
     plan,
     updatedCount,
     interestCap: planInterestCap(plan),
-    boost: getBoostStatus(deviceId, plan as PlanTier),
+    boost,
   });
 });
 

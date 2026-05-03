@@ -9,6 +9,7 @@ export const seenAlertsTable = pgTable(
     interestId: text("interest_id").notNull(),
     dedupKey: text("dedup_key").notNull(),
     title: text("title").notNull(),
+    summary: text("summary"),
     url: text("url"),
     seenAt: timestamp("seen_at", { withTimezone: true }).notNull().defaultNow(),
   },
