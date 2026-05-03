@@ -22,6 +22,13 @@ import type {
   HealthStatus,
   ParseInterestRequest,
   ParsedInterestResult,
+  PushTestRequest,
+  PushTestResult,
+  RegisterDeviceRequest,
+  RegisterDeviceResult,
+  TrackInterestRequest,
+  TrackInterestResult,
+  UntrackInterest200,
 } from "./api.schemas";
 
 import { customFetch } from "../custom-fetch";
@@ -193,6 +200,348 @@ export const useParseInterest = <
   TContext
 > => {
   return useMutation(getParseInterestMutationOptions(options));
+};
+
+/**
+ * @summary Register or update an Expo push token for a device
+ */
+export const getRegisterDeviceUrl = () => {
+  return `/api/push/register-device`;
+};
+
+export const registerDevice = async (
+  registerDeviceRequest: RegisterDeviceRequest,
+  options?: RequestInit,
+): Promise<RegisterDeviceResult> => {
+  return customFetch<RegisterDeviceResult>(getRegisterDeviceUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(registerDeviceRequest),
+  });
+};
+
+export const getRegisterDeviceMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerDevice>>,
+    TError,
+    { data: BodyType<RegisterDeviceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof registerDevice>>,
+  TError,
+  { data: BodyType<RegisterDeviceRequest> },
+  TContext
+> => {
+  const mutationKey = ["registerDevice"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof registerDevice>>,
+    { data: BodyType<RegisterDeviceRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return registerDevice(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type RegisterDeviceMutationResult = NonNullable<
+  Awaited<ReturnType<typeof registerDevice>>
+>;
+export type RegisterDeviceMutationBody = BodyType<RegisterDeviceRequest>;
+export type RegisterDeviceMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Register or update an Expo push token for a device
+ */
+export const useRegisterDevice = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof registerDevice>>,
+    TError,
+    { data: BodyType<RegisterDeviceRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof registerDevice>>,
+  TError,
+  { data: BodyType<RegisterDeviceRequest> },
+  TContext
+> => {
+  return useMutation(getRegisterDeviceMutationOptions(options));
+};
+
+/**
+ * @summary Track an interest server-side so the background poller fires push notifications
+ */
+export const getTrackInterestUrl = () => {
+  return `/api/push/track-interest`;
+};
+
+export const trackInterest = async (
+  trackInterestRequest: TrackInterestRequest,
+  options?: RequestInit,
+): Promise<TrackInterestResult> => {
+  return customFetch<TrackInterestResult>(getTrackInterestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(trackInterestRequest),
+  });
+};
+
+export const getTrackInterestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof trackInterest>>,
+    TError,
+    { data: BodyType<TrackInterestRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof trackInterest>>,
+  TError,
+  { data: BodyType<TrackInterestRequest> },
+  TContext
+> => {
+  const mutationKey = ["trackInterest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof trackInterest>>,
+    { data: BodyType<TrackInterestRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return trackInterest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type TrackInterestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof trackInterest>>
+>;
+export type TrackInterestMutationBody = BodyType<TrackInterestRequest>;
+export type TrackInterestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Track an interest server-side so the background poller fires push notifications
+ */
+export const useTrackInterest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof trackInterest>>,
+    TError,
+    { data: BodyType<TrackInterestRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof trackInterest>>,
+  TError,
+  { data: BodyType<TrackInterestRequest> },
+  TContext
+> => {
+  return useMutation(getTrackInterestMutationOptions(options));
+};
+
+/**
+ * @summary Stop tracking an interest server-side
+ */
+export const getUntrackInterestUrl = (interestId: string) => {
+  return `/api/push/track-interest/${interestId}`;
+};
+
+export const untrackInterest = async (
+  interestId: string,
+  options?: RequestInit,
+): Promise<UntrackInterest200> => {
+  return customFetch<UntrackInterest200>(getUntrackInterestUrl(interestId), {
+    ...options,
+    method: "DELETE",
+  });
+};
+
+export const getUntrackInterestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof untrackInterest>>,
+    TError,
+    { interestId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof untrackInterest>>,
+  TError,
+  { interestId: string },
+  TContext
+> => {
+  const mutationKey = ["untrackInterest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof untrackInterest>>,
+    { interestId: string }
+  > = (props) => {
+    const { interestId } = props ?? {};
+
+    return untrackInterest(interestId, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type UntrackInterestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof untrackInterest>>
+>;
+
+export type UntrackInterestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Stop tracking an interest server-side
+ */
+export const useUntrackInterest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof untrackInterest>>,
+    TError,
+    { interestId: string },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof untrackInterest>>,
+  TError,
+  { interestId: string },
+  TContext
+> => {
+  return useMutation(getUntrackInterestMutationOptions(options));
+};
+
+/**
+ * @summary Send a test push notification to a registered device
+ */
+export const getPushTestUrl = () => {
+  return `/api/push/test`;
+};
+
+export const pushTest = async (
+  pushTestRequest: PushTestRequest,
+  options?: RequestInit,
+): Promise<PushTestResult> => {
+  return customFetch<PushTestResult>(getPushTestUrl(), {
+    ...options,
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...options?.headers },
+    body: JSON.stringify(pushTestRequest),
+  });
+};
+
+export const getPushTestMutationOptions = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pushTest>>,
+    TError,
+    { data: BodyType<PushTestRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationOptions<
+  Awaited<ReturnType<typeof pushTest>>,
+  TError,
+  { data: BodyType<PushTestRequest> },
+  TContext
+> => {
+  const mutationKey = ["pushTest"];
+  const { mutation: mutationOptions, request: requestOptions } = options
+    ? options.mutation &&
+      "mutationKey" in options.mutation &&
+      options.mutation.mutationKey
+      ? options
+      : { ...options, mutation: { ...options.mutation, mutationKey } }
+    : { mutation: { mutationKey }, request: undefined };
+
+  const mutationFn: MutationFunction<
+    Awaited<ReturnType<typeof pushTest>>,
+    { data: BodyType<PushTestRequest> }
+  > = (props) => {
+    const { data } = props ?? {};
+
+    return pushTest(data, requestOptions);
+  };
+
+  return { mutationFn, ...mutationOptions };
+};
+
+export type PushTestMutationResult = NonNullable<
+  Awaited<ReturnType<typeof pushTest>>
+>;
+export type PushTestMutationBody = BodyType<PushTestRequest>;
+export type PushTestMutationError = ErrorType<unknown>;
+
+/**
+ * @summary Send a test push notification to a registered device
+ */
+export const usePushTest = <
+  TError = ErrorType<unknown>,
+  TContext = unknown,
+>(options?: {
+  mutation?: UseMutationOptions<
+    Awaited<ReturnType<typeof pushTest>>,
+    TError,
+    { data: BodyType<PushTestRequest> },
+    TContext
+  >;
+  request?: SecondParameter<typeof customFetch>;
+}): UseMutationResult<
+  Awaited<ReturnType<typeof pushTest>>,
+  TError,
+  { data: BodyType<PushTestRequest> },
+  TContext
+> => {
+  return useMutation(getPushTestMutationOptions(options));
 };
 
 /**

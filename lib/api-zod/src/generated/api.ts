@@ -66,6 +66,109 @@ export const ParseInterestResponse = zod.object({
 });
 
 /**
+ * @summary Register or update an Expo push token for a device
+ */
+export const registerDeviceBodyDeviceIdMin = 4;
+export const registerDeviceBodyDeviceIdMax = 128;
+
+export const registerDeviceBodyExpoPushTokenMin = 4;
+export const registerDeviceBodyExpoPushTokenMax = 256;
+
+export const RegisterDeviceBody = zod.object({
+  deviceId: zod
+    .string()
+    .min(registerDeviceBodyDeviceIdMin)
+    .max(registerDeviceBodyDeviceIdMax),
+  expoPushToken: zod
+    .string()
+    .min(registerDeviceBodyExpoPushTokenMin)
+    .max(registerDeviceBodyExpoPushTokenMax),
+  platform: zod.enum(["ios", "android", "web"]),
+});
+
+export const RegisterDeviceResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Track an interest server-side so the background poller fires push notifications
+ */
+export const trackInterestBodyInterestIdMax = 128;
+
+export const trackInterestBodyDeviceIdMin = 4;
+export const trackInterestBodyDeviceIdMax = 128;
+
+export const trackInterestBodyRawTextMax = 1000;
+
+export const TrackInterestBody = zod.object({
+  interestId: zod.string().min(1).max(trackInterestBodyInterestIdMax),
+  deviceId: zod
+    .string()
+    .min(trackInterestBodyDeviceIdMin)
+    .max(trackInterestBodyDeviceIdMax),
+  spec: zod.object({
+    intentType: zod.enum([
+      "monitor",
+      "alert",
+      "opportunity",
+      "match",
+      "creator_watch",
+      "travel",
+      "local_signal",
+    ]),
+    topic: zod.string(),
+    entities: zod.array(zod.string()),
+    locationScope: zod.string().nullish(),
+    urgency: zod.enum(["high", "medium", "low"]),
+    desiredOutcome: zod.string(),
+    trustNeed: zod.enum(["high", "medium", "low"]),
+    matchMode: zod
+      .enum(["companion", "friend", "collaborate", "meal_mate", "date"])
+      .nullish(),
+    privacyLevel: zod.enum(["public", "friends", "private"]),
+    negativeConstraints: zod.array(zod.string()).optional(),
+    suggestedSources: zod.array(
+      zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+    ),
+  }),
+  rawText: zod.string().max(trackInterestBodyRawTextMax).optional(),
+});
+
+export const TrackInterestResponse = zod.object({
+  ok: zod.boolean(),
+  interestId: zod.string(),
+});
+
+/**
+ * @summary Stop tracking an interest server-side
+ */
+export const UntrackInterestParams = zod.object({
+  interestId: zod.coerce.string(),
+});
+
+export const UntrackInterestResponse = zod.object({
+  ok: zod.boolean(),
+});
+
+/**
+ * @summary Send a test push notification to a registered device
+ */
+export const pushTestBodyDeviceIdMin = 4;
+export const pushTestBodyDeviceIdMax = 128;
+
+export const PushTestBody = zod.object({
+  deviceId: zod
+    .string()
+    .min(pushTestBodyDeviceIdMin)
+    .max(pushTestBodyDeviceIdMax),
+});
+
+export const PushTestResponse = zod.object({
+  ok: zod.boolean(),
+  ticket: zod.string(),
+});
+
+/**
  * @summary Multi-agent pipeline — Source Router + Collector + Verifier produce alerts
  */
 export const generateAlertsBodyCountDefault = 3;

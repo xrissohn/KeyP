@@ -1,11 +1,13 @@
 import { Platform } from 'react-native';
+import Constants from 'expo-constants';
 import type { Alert } from '@/types';
+import { getDeviceId } from '@/lib/deviceId';
+import { callRegisterDevice } from '@/lib/agents/ApiClient';
 
-// KeyP uses LOCAL notifications (no push server). When the background
-// collector finds a genuinely new alert, we schedule a notification on the
-// device. On native we use expo-notifications; on web we fall back to the
-// browser Notification API. Both paths request permission lazily on the
-// first scheduling attempt and silently no-op if the user denies.
+// KeyP uses BOTH local notifications (foreground sweep results) AND remote
+// Expo Push notifications (server-side poller fires while app is closed).
+// On native: expo-notifications + Expo push token registered with our server.
+// On web: browser Notification API only (no remote push pipeline).
 
 let nativeModule: typeof import('expo-notifications') | null = null;
 let nativeReady = false;
@@ -90,6 +92,46 @@ async function ensureWebPermission(): Promise<boolean> {
   }
 }
 
+let pushTokenRegistered = false;
+
+/**
+ * Fetch this device's Expo push token (native only) and register it with
+ * the server so the background poller can deliver notifications when the
+ * app is closed. Idempotent per session.
+ */
+async function registerExpoPushTokenOnce(): Promise<void> {
+  if (pushTokenRegistered || Platform.OS === 'web') return;
+  const ok = await ensureNativePermission();
+  if (!ok) return;
+  const mod = await loadNativeModule();
+  if (!mod) return;
+  try {
+    // Expo Go and bare workflow both need projectId for tokens; fall back to
+    // device-only token (still useful for development) when unavailable.
+    const projectId =
+      (Constants.expoConfig?.extra as { eas?: { projectId?: string } } | undefined)?.eas
+        ?.projectId ??
+      (Constants as unknown as { easConfig?: { projectId?: string } }).easConfig?.projectId;
+    const tokenResp = await mod.getExpoPushTokenAsync(
+      projectId ? { projectId } : undefined,
+    );
+    const token = tokenResp?.data;
+    if (!token || typeof token !== 'string') return;
+    const deviceId = await getDeviceId();
+    await callRegisterDevice({
+      deviceId,
+      expoPushToken: token,
+      platform: Platform.OS === 'ios' ? 'ios' : 'android',
+    });
+    pushTokenRegistered = true;
+  } catch (err) {
+    // Most common cause in Expo Go SDK 53+ is "Push notifications functionality
+    // provided by expo-notifications was removed from Expo Go" — needs a dev
+    // build. We swallow the error so the app keeps working.
+    console.warn('[KeyP] expo push token registration skipped:', err);
+  }
+}
+
 /** Initialize notification permissions early so the first alert lands fast. */
 export async function initNotifications(): Promise<void> {
   if (Platform.OS === 'web') {
@@ -97,6 +139,8 @@ export async function initNotifications(): Promise<void> {
     return;
   }
   await ensureNativePermission();
+  // Fire-and-forget: token registration shouldn't block the UI.
+  void registerExpoPushTokenOnce();
 }
 
 /** Schedule a local notification for a freshly collected alert. */

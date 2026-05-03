@@ -173,3 +173,68 @@ export interface GeneratedAlertsResult {
   alerts: AlertData[];
   steps: AgentStep[];
 }
+
+export type RegisterDeviceRequestPlatform =
+  (typeof RegisterDeviceRequestPlatform)[keyof typeof RegisterDeviceRequestPlatform];
+
+export const RegisterDeviceRequestPlatform = {
+  ios: "ios",
+  android: "android",
+  web: "web",
+} as const;
+
+export interface RegisterDeviceRequest {
+  /**
+   * @minLength 4
+   * @maxLength 128
+   */
+  deviceId: string;
+  /**
+   * @minLength 4
+   * @maxLength 256
+   */
+  expoPushToken: string;
+  platform: RegisterDeviceRequestPlatform;
+}
+
+export interface RegisterDeviceResult {
+  ok: boolean;
+}
+
+export interface TrackInterestRequest {
+  /**
+   * @minLength 1
+   * @maxLength 128
+   */
+  interestId: string;
+  /**
+   * @minLength 4
+   * @maxLength 128
+   */
+  deviceId: string;
+  spec: InterestSpecData;
+  /** @maxLength 1000 */
+  rawText?: string;
+}
+
+export interface TrackInterestResult {
+  ok: boolean;
+  interestId: string;
+}
+
+export interface PushTestRequest {
+  /**
+   * @minLength 4
+   * @maxLength 128
+   */
+  deviceId: string;
+}
+
+export interface PushTestResult {
+  ok: boolean;
+  ticket: string;
+}
+
+export type UntrackInterest200 = {
+  ok: boolean;
+};

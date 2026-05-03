@@ -11,6 +11,8 @@ import { MOCK_ALERTS, MOCK_INTERESTS, MOCK_MATCHES } from '@/data/mockData';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
 import { initNotifications, notifyFreshAlerts } from '@/lib/notifications';
+import { getDeviceId } from '@/lib/deviceId';
+import { callTrackInterest, callUntrackInterest } from '@/lib/agents/ApiClient';
 import type { AgentStep } from '@workspace/api-client-react';
 import type { Alert, FeedbackType, Interest, InterestSpec, Match } from '@/types';
 
@@ -296,6 +298,23 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           notifyFreshAlerts(newAlerts).catch(() => {});
         }
 
+        // Server-side tracking: tells the background poller to monitor this
+        // interest so push notifications fire even when the app is closed.
+        // Fire-and-forget; failure here doesn't block client-side persistence.
+        (async () => {
+          try {
+            const deviceId = await getDeviceId();
+            await callTrackInterest({
+              interestId: newInterest.id,
+              deviceId,
+              spec,
+              rawText,
+            });
+          } catch (err) {
+            console.warn('[KeyP] track-interest failed (will rely on client polling):', err);
+          }
+        })();
+
         return { spec, steps: [...plannerSteps, ...collectorSteps] };
       } finally {
         setIsProcessingInterest(false);
@@ -306,6 +325,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const deleteInterest = useCallback((interestId: string) => {
     setInterests((prev) => prev.filter((i) => i.id !== interestId));
+    // Stop server-side tracking so the poller no longer fires push for it.
+    callUntrackInterest(interestId).catch((err) => {
+      console.warn('[KeyP] untrack-interest failed (server may still poll briefly):', err);
+    });
   }, []);
 
   const toggleSaveAlert = useCallback((alertId: string) => {

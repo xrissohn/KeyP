@@ -12,6 +12,8 @@ tags:
     description: Health operations
   - name: agents
     description: KeyP multi-agent pipeline
+  - name: push
+    description: Push notification device + interest registration
 paths:
   /healthz:
     get:
@@ -44,6 +46,80 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ParsedInterestResult"
+  /push/register-device:
+    post:
+      operationId: registerDevice
+      tags: [push]
+      summary: Register or update an Expo push token for a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "200":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterDeviceResult"
+  /push/track-interest:
+    post:
+      operationId: trackInterest
+      tags: [push]
+      summary: Track an interest server-side so the background poller fires push notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrackInterestRequest"
+      responses:
+        "200":
+          description: Tracked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackInterestResult"
+  /push/track-interest/{interestId}:
+    delete:
+      operationId: untrackInterest
+      tags: [push]
+      summary: Stop tracking an interest server-side
+      parameters:
+        - name: interestId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Untracked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+  /push/test:
+    post:
+      operationId: pushTest
+      tags: [push]
+      summary: Send a test push notification to a registered device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTestRequest"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushTestResult"
   /agents/generate-alerts:
     post:
       operationId: generateAlerts
@@ -215,3 +291,45 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgentStep"
+    RegisterDeviceRequest:
+      type: object
+      required: [deviceId, expoPushToken, platform]
+      properties:
+        deviceId: { type: string, minLength: 4, maxLength: 128 }
+        expoPushToken: { type: string, minLength: 4, maxLength: 256 }
+        platform:
+          type: string
+          enum: [ios, android, web]
+    RegisterDeviceResult:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+    TrackInterestRequest:
+      type: object
+      required: [interestId, deviceId, spec]
+      properties:
+        interestId: { type: string, minLength: 1, maxLength: 128 }
+        deviceId: { type: string, minLength: 4, maxLength: 128 }
+        spec:
+          $ref: "#/components/schemas/InterestSpecData"
+        rawText:
+          type: string
+          maxLength: 1000
+    TrackInterestResult:
+      type: object
+      required: [ok, interestId]
+      properties:
+        ok: { type: boolean }
+        interestId: { type: string }
+    PushTestRequest:
+      type: object
+      required: [deviceId]
+      properties:
+        deviceId: { type: string, minLength: 4, maxLength: 128 }
+    PushTestResult:
+      type: object
+      required: [ok, ticket]
+      properties:
+        ok: { type: boolean }
+        ticket: { type: string }

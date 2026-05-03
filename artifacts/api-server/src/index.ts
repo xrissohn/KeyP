@@ -1,5 +1,6 @@
 import app from "./app";
 import { logger } from "./lib/logger";
+import { startPollerCron } from "./services/pollerCron";
 
 const rawPort = process.env["PORT"];
 
@@ -22,4 +23,8 @@ app.listen(port, (err) => {
   }
 
   logger.info({ port }, "Server listening");
+  // Background poller for tracked interests → Expo push notifications.
+  // Started after listen so the loopback HTTP call inside the poller can
+  // reach the agent endpoints without a race.
+  startPollerCron();
 });

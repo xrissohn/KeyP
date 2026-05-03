@@ -59,4 +59,36 @@ export async function callGenerateAlerts(
   return postJson<GeneratedAlertsResult>('/agents/generate-alerts', { spec, count }, 45000);
 }
 
+// ───────────────────────── Push (server-side tracking) ─────────────────────
+
+export async function callRegisterDevice(args: {
+  deviceId: string;
+  expoPushToken: string;
+  platform: 'ios' | 'android' | 'web';
+}): Promise<{ ok: boolean }> {
+  return postJson('/push/register-device', args, 10000);
+}
+
+export async function callTrackInterest(args: {
+  interestId: string;
+  deviceId: string;
+  spec: InterestSpecData;
+  rawText?: string;
+}): Promise<{ ok: boolean; interestId: string }> {
+  return postJson('/push/track-interest', args, 10000);
+}
+
+export async function callUntrackInterest(interestId: string): Promise<{ ok: boolean }> {
+  const base = getApiBase();
+  if (!base) return { ok: false };
+  const res = await fetch(`${base}/push/track-interest/${encodeURIComponent(interestId)}`, {
+    method: 'DELETE',
+  });
+  return { ok: res.ok };
+}
+
+export async function callPushTest(deviceId: string): Promise<{ ok: boolean; ticket: string }> {
+  return postJson('/push/test', { deviceId }, 15000);
+}
+
 export type { AlertData, InterestSpecData, ParsedInterestResult, GeneratedAlertsResult };
