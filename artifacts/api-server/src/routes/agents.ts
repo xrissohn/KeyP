@@ -15,6 +15,8 @@ import type {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { openrouter } from "@workspace/integrations-openrouter-ai";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { lookup as dnsLookup } from "node:dns/promises";
+import { isIP } from "node:net";
 
 const router: IRouter = Router();
 
@@ -24,6 +26,159 @@ const VERIFIER_MODEL = "claude-sonnet-4-6";
 const PLANNER_MAX_TOKENS = 4096;
 const COLLECTOR_MAX_TOKENS = 8192;
 const VERIFIER_MAX_TOKENS = 8192;
+
+// ============================================================
+// URL reachability gate — drops candidates whose source URL is
+// fabricated/dead. Collector LLMs (especially the backup pass)
+// sometimes hallucinate plausible-looking news URLs that 404.
+// We HEAD-request each candidate URL with a tight timeout and
+// drop anything that 404/410/5xxs or fails the network entirely.
+// 401/403/405/429 are kept (page exists, just gated/method-blocked).
+//
+// SSRF DEFENSE: every URL is LLM-supplied and untrusted. Before
+// each request we (a) require http(s), (b) reject embedded creds
+// and non-default ports, (c) DNS-resolve the host and reject any
+// loopback / private / link-local / multicast / metadata range
+// (IPv4 + IPv6), and (d) follow redirects MANUALLY so each hop
+// is re-validated against the same policy.
+// ============================================================
+function isPrivateIPv4(ip: string): boolean {
+  const parts = ip.split(".").map(Number);
+  if (parts.length !== 4 || parts.some((n) => !Number.isFinite(n))) return true;
+  const [a, b] = parts as [number, number, number, number];
+  if (a === 10) return true;
+  if (a === 127) return true;
+  if (a === 0) return true;
+  if (a === 169 && b === 254) return true; // link-local + AWS/GCP metadata
+  if (a === 172 && b >= 16 && b <= 31) return true;
+  if (a === 192 && b === 168) return true;
+  if (a === 100 && b >= 64 && b <= 127) return true; // CGNAT
+  if (a >= 224) return true; // multicast/reserved
+  return false;
+}
+function isPrivateIPv6(ip: string): boolean {
+  const lower = ip.toLowerCase();
+  if (lower === "::1" || lower === "::") return true;
+  if (lower.startsWith("fe80:") || lower.startsWith("fec0:")) return true; // link/site local
+  if (lower.startsWith("fc") || lower.startsWith("fd")) return true; // unique local
+  if (lower.startsWith("ff")) return true; // multicast
+  // IPv4-mapped (::ffff:a.b.c.d) — rewalk through v4 check
+  const m = lower.match(/^::ffff:([0-9.]+)$/);
+  if (m && m[1]) return isPrivateIPv4(m[1]);
+  return false;
+}
+async function assertSafeUrl(rawUrl: string): Promise<URL> {
+  const u = new URL(rawUrl);
+  if (u.protocol !== "http:" && u.protocol !== "https:") {
+    throw new Error("blocked: non-http(s) protocol");
+  }
+  if (u.username || u.password) throw new Error("blocked: embedded credentials");
+  if (u.port) {
+    const p = Number(u.port);
+    if (p !== 80 && p !== 443) throw new Error("blocked: non-default port");
+  }
+  const host = u.hostname;
+  const literalKind = isIP(host); // 4, 6, or 0
+  if (literalKind === 4) {
+    if (isPrivateIPv4(host)) throw new Error("blocked: private IPv4");
+  } else if (literalKind === 6) {
+    if (isPrivateIPv6(host)) throw new Error("blocked: private IPv6");
+  } else {
+    if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local")) {
+      throw new Error("blocked: local hostname");
+    }
+    const records = await dnsLookup(host, { all: true });
+    for (const r of records) {
+      if (r.family === 4 && isPrivateIPv4(r.address)) {
+        throw new Error(`blocked: host resolves to private IPv4 ${r.address}`);
+      }
+      if (r.family === 6 && isPrivateIPv6(r.address)) {
+        throw new Error(`blocked: host resolves to private IPv6 ${r.address}`);
+      }
+    }
+  }
+  return u;
+}
+
+async function fetchWithSafeRedirects(
+  startUrl: string,
+  init: { method: "HEAD" | "GET"; signal: AbortSignal; headers: Record<string, string> },
+  maxHops = 5,
+): Promise<Response> {
+  let current = startUrl;
+  for (let hop = 0; hop <= maxHops; hop++) {
+    await assertSafeUrl(current);
+    const res = await fetch(current, { ...init, redirect: "manual" });
+    if (res.status >= 300 && res.status < 400) {
+      const loc = res.headers.get("location");
+      if (!loc) return res;
+      current = new URL(loc, current).toString();
+      continue;
+    }
+    return res;
+  }
+  throw new Error("blocked: too many redirects");
+}
+
+async function isUrlReachable(url: string): Promise<boolean> {
+  const ua =
+    "Mozilla/5.0 (compatible; KeypBot/1.0; +https://keyp.replit.app)";
+  const ctrl = new AbortController();
+  const timer = setTimeout(() => ctrl.abort(), 5000);
+  try {
+    let res = await fetchWithSafeRedirects(url, {
+      method: "HEAD",
+      signal: ctrl.signal,
+      headers: { "User-Agent": ua, Accept: "*/*" },
+    });
+    if (res.status === 405 || res.status === 501) {
+      res = await fetchWithSafeRedirects(url, {
+        method: "GET",
+        signal: ctrl.signal,
+        headers: { "User-Agent": ua, Accept: "*/*", Range: "bytes=0-0" },
+      });
+    }
+    if (res.status === 404 || res.status === 410) return false;
+    if (res.status >= 500 && res.status < 600) return false;
+    return true;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function pruneUnreachableCandidates<
+  T extends { url?: string; title: string },
+>(
+  cands: T[],
+  log: { info: (o: object, m: string) => void },
+): Promise<T[]> {
+  if (cands.length === 0) return cands;
+  const checks = await Promise.all(
+    cands.map(async (c) => ({
+      c,
+      ok: c.url ? await isUrlReachable(c.url) : false,
+      url: c.url,
+    })),
+  );
+  const kept = checks.filter((x) => x.ok).map((x) => x.c);
+  const dropped = checks.filter((x) => !x.ok);
+  if (dropped.length > 0) {
+    log.info(
+      {
+        kept: kept.length,
+        dropped: dropped.length,
+        droppedUrls: dropped.map((d) => ({
+          url: d.url ?? null,
+          title: d.c.title.slice(0, 80),
+        })),
+      },
+      "[url-gate] dropped candidates with missing/unreachable source URL",
+    );
+  }
+  return kept;
+}
 
 function fallbackPlanner(rawText: string): InterestSpecData {
   const lower = rawText.toLowerCase();
@@ -380,6 +535,7 @@ Respond ONLY with strict JSON, no prose:
 Hard rules:
 - NEVER return an empty alerts array. If no exact match exists in the listed channels, broaden to the most relevant adjacent public content on the same topic and return at least 1 real, dated finding with a real URL.
 - Each item MUST be real public web content with a real URL — no placeholders, no "I cannot help with that", no apologies.
+- **URL INTEGRITY (CRITICAL)**: The "url" field MUST be a URL you actually retrieved from your web search results — copied verbatim from a real search hit. NEVER guess, fabricate, pattern-construct, shorten, or reconstruct URLs from a domain + plausible-looking slug. NEVER invent article IDs, dates in paths, or category segments. If you do not have an exact, working URL from a real search result, OMIT THAT ITEM ENTIRELY and find a different one. Items whose URL returns 404 will be discarded by a downstream reachability check, wasting the user's time — so it is much better to return one item with a verified URL than three items with guessed URLs. Prefer canonical homepage/article URLs over deep-linked search/preview URLs.
 - **Content-recency over republish-recency**: if a recently-published page is actually recapping a much older event/news/gossip, set eventHoursAgo to when the EVENT itself occurred (read the body — dates in the article, "X years ago", "in 2024", etc.). Strongly prefer items whose underlying event is genuinely recent over items merely republished today about old stories.
 - If the user already received the items listed under EXISTING USER ALERTS below, DO NOT return the same story again, even from a different source/URL — find a different, genuinely new development.
 - Translate non-Korean source titles into natural Korean.
@@ -475,7 +631,7 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
           const knownBlock = knownItems.length
             ? `\n\nALREADY-DELIVERED STORIES (do NOT repeat any of these, even with different wording or a different source URL):\n${knownItems.map((k, i) => `${i + 1}. ${k.title} — ${k.summary}`).join("\n")}`
             : "";
-          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"tags":["<tag1>","<tag2>"]}]}. Real URLs only. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}`;
+          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}`;
           const backup = await openrouter.chat.completions.create({
             model: COLLECTOR_MODEL,
             max_tokens: COLLECTOR_MAX_TOKENS,
@@ -537,6 +693,30 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
         status: "failed",
         message: "Perplexity 호출 실패 — 빈 결과 반환",
         durationMs: Date.now() - collectorStart,
+      });
+    }
+  }
+
+  // ============================================================
+  // URL reachability gate — runs BEFORE Verifier so we don't waste
+  // Claude tokens scoring fabricated URLs, and so the user never sees
+  // a 404 link. Applies to BOTH Collector and backup-collector outputs.
+  // If everything fails the check, candidates becomes empty and the
+  // pipeline returns no alerts for this sweep — the poller will retry
+  // next tick (better silence than dead links per user request).
+  // ============================================================
+  if (candidates.length > 0) {
+    const beforeUrlGate = candidates.length;
+    candidates = await pruneUnreachableCandidates(candidates, req.log);
+    if (candidates.length !== beforeUrlGate) {
+      steps.push({
+        agent: "Collector",
+        status: candidates.length > 0 ? "partial" : "failed",
+        message:
+          candidates.length > 0
+            ? `출처 검증: ${beforeUrlGate}건 중 ${candidates.length}건만 링크가 살아있음`
+            : `출처 검증: ${beforeUrlGate}건 모두 링크가 죽어있어 폐기 (다음 sweep 재시도)`,
+        durationMs: 0,
       });
     }
   }

@@ -37,6 +37,7 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 #### Architecture
 - **Auth**: Mock auth via AsyncStorage (`context/AuthContext.tsx`)
 - **State**: App-wide context (`context/AppContext.tsx`) — interests, alerts, matches
+- **URL reachability gate** (`artifacts/api-server/src/routes/agents.ts`): runs after Collector + backup-collector, before Verifier. HEAD-requests each candidate URL with 5s timeout (GET ranged-fallback for 405/501); drops 404/410/5xx and network failures. SSRF-hardened: rejects non-http(s), embedded creds, non-standard ports, and any host/redirect-hop resolving to loopback/private/link-local/multicast/metadata IPs (IPv4 + IPv6). Empty result → poller silently retries next sweep ("better silence than dead links").
 - **AI Pipeline (specialized model per agent role, all via Replit AI Integrations — no user API keys, billed to credits)**:
   - `lib/agents/ApiClient.ts` — fetch wrapper hitting `/api/agents/*` endpoints
   - `lib/agents/PlannerAgent.ts` — calls `POST /api/agents/parse-interest`; keyword fallback on failure
