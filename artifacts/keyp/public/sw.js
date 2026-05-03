@@ -1,6 +1,14 @@
 /* KeyP service worker — minimal install + network-first for navigations. */
-const CACHE_NAME = "keyp-shell-v1";
-const SHELL_ASSETS = ["/", "/manifest.webmanifest", "/icon.png", "/icon-mark.png"];
+const CACHE_NAME = "keyp-shell-v2";
+const SHELL_ASSETS = [
+  "/",
+  "/manifest.webmanifest",
+  "/icon.png",
+  "/icon-mark.png",
+  "/icon-192.png",
+  "/icon-512.png",
+  "/icon-512-maskable.png",
+];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(

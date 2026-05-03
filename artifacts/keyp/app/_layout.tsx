@@ -87,7 +87,25 @@ if (
     meta.content = content;
   };
   ensureLink("manifest", "/manifest.webmanifest");
-  ensureLink("icon", "/icon-mark.png", "image/png");
+  const ensureSizedLink = (
+    rel: string,
+    href: string,
+    sizes: string,
+    type?: string,
+  ) => {
+    if (head.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.href = href;
+    link.setAttribute("sizes", sizes);
+    if (type) link.type = type;
+    head.appendChild(link);
+  };
+  ensureSizedLink("icon", "/icon-192.png", "192x192", "image/png");
+  ensureSizedLink("icon", "/icon-512.png", "512x512", "image/png");
+  ensureLink("shortcut icon", "/icon-mark.png", "image/png");
+  ensureSizedLink("apple-touch-icon", "/icon-192.png", "192x192");
+  ensureSizedLink("apple-touch-icon", "/icon-512.png", "512x512");
   ensureLink("apple-touch-icon", "/icon.png");
   ensureMeta("theme-color", "#5B7FFF");
   ensureMeta("apple-mobile-web-app-capable", "yes");
@@ -102,6 +120,115 @@ if (
       navigator.serviceWorker.register("/sw.js").catch(() => undefined);
     });
   }
+
+  // Android Chrome install banner. Captures `beforeinstallprompt`, then
+  // shows a small bottom-anchored card prompting the user to install KeyP
+  // as a PWA. Hidden once installed, dismissed, or already in standalone.
+  type BIPEvent = Event & {
+    prompt: () => Promise<void>;
+    userChoice: Promise<{ outcome: "accepted" | "dismissed" }>;
+  };
+  const STORAGE_KEY = "keyp.pwa.installDismissedAt";
+  const isStandalone = () => {
+    try {
+      return (
+        window.matchMedia("(display-mode: standalone)").matches ||
+        // iOS Safari
+        (window.navigator as { standalone?: boolean }).standalone === true
+      );
+    } catch {
+      return false;
+    }
+  };
+  const recentlyDismissed = () => {
+    try {
+      const v = window.localStorage.getItem(STORAGE_KEY);
+      if (!v) return false;
+      const ts = Number(v);
+      if (!Number.isFinite(ts)) return false;
+      // Re-show after 14 days.
+      return Date.now() - ts < 14 * 24 * 60 * 60 * 1000;
+    } catch {
+      return false;
+    }
+  };
+  const showBanner = (onInstall: () => void) => {
+    if (document.getElementById("keyp-pwa-banner")) return;
+    const wrap = document.createElement("div");
+    wrap.id = "keyp-pwa-banner";
+    wrap.setAttribute(
+      "style",
+      [
+        "position:fixed",
+        "left:12px",
+        "right:12px",
+        "bottom:12px",
+        "z-index:2147483647",
+        "background:#ffffff",
+        "color:#0F172A",
+        "border:1px solid #E2E8F0",
+        "border-radius:14px",
+        "box-shadow:0 10px 30px rgba(15,23,42,0.18)",
+        "padding:12px 14px",
+        "display:flex",
+        "align-items:center",
+        "gap:12px",
+        "font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Apple SD Gothic Neo','Noto Sans KR',sans-serif",
+      ].join(";"),
+    );
+    wrap.innerHTML = `
+      <img src="/icon-192.png" width="40" height="40" alt="KeyP" style="border-radius:10px;flex-shrink:0" />
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:14px;line-height:1.2">앱으로 설치하기</div>
+        <div style="font-size:12px;color:#475569;line-height:1.3;margin-top:2px">홈 화면에 추가하면 더 빠르고 알림처럼 사용할 수 있어요.</div>
+      </div>
+      <button id="keyp-pwa-dismiss" style="background:transparent;border:0;color:#64748B;font-size:13px;padding:8px 6px;cursor:pointer">나중에</button>
+      <button id="keyp-pwa-install" style="background:#5B7FFF;color:#fff;border:0;border-radius:10px;font-size:13px;font-weight:700;padding:10px 14px;cursor:pointer">설치</button>
+    `;
+    document.body.appendChild(wrap);
+    const remove = () => {
+      wrap.remove();
+    };
+    wrap.querySelector("#keyp-pwa-dismiss")?.addEventListener("click", () => {
+      try {
+        window.localStorage.setItem(STORAGE_KEY, String(Date.now()));
+      } catch {}
+      remove();
+    });
+    wrap.querySelector("#keyp-pwa-install")?.addEventListener("click", () => {
+      remove();
+      onInstall();
+    });
+  };
+
+  let deferredPrompt: BIPEvent | null = null;
+  window.addEventListener("beforeinstallprompt", (e) => {
+    e.preventDefault();
+    deferredPrompt = e as BIPEvent;
+    if (isStandalone() || recentlyDismissed()) return;
+    showBanner(() => {
+      const p = deferredPrompt;
+      deferredPrompt = null;
+      if (!p) return;
+      p.prompt()
+        .then(() => p.userChoice)
+        .then((choice) => {
+          if (choice.outcome === "dismissed") {
+            try {
+              window.localStorage.setItem(STORAGE_KEY, String(Date.now()));
+            } catch {}
+          }
+        })
+        .catch(() => undefined);
+    });
+  });
+  window.addEventListener("appinstalled", () => {
+    deferredPrompt = null;
+    document.getElementById("keyp-pwa-banner")?.remove();
+    try {
+      window.localStorage.removeItem(STORAGE_KEY);
+    } catch {}
+  });
 }
 
 // React Native safety net. RN routes unhandled rejections through the
