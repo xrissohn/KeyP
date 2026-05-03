@@ -30,11 +30,21 @@ async function postJson<T>(path: string, body: unknown, timeoutMs = 30000): Prom
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
+    // Attach a SYNCHRONOUS .catch to the fetch promise so the rejection is
+    // never observed as "unhandled" by the host runtime. Some browser
+    // extensions hijack fetch and surface the rejection in a microtask BEFORE
+    // the surrounding async/await chain has had a chance to wire up its
+    // handlers — that's what causes the "Uncaught Error: Failed to fetch"
+    // overlay in Expo Web's LogBox even though our outer try/catch would
+    // otherwise swallow it. The synchronous .catch defuses that race.
     const res = await fetch(`${base}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
+    }).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      throw new Error(`Network request failed for ${path}: ${msg}`);
     });
     if (!res.ok) {
       throw new Error(`API ${path} failed with ${res.status}`);

@@ -19,6 +19,31 @@ import { AppProvider } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
 
+// Web-only safety net: swallow background-poller fetch failures so they don't
+// pop the Expo Web LogBox "Uncaught Error: Failed to fetch" overlay. Real
+// callers (generateAlertsForSpec, refreshInterest) already catch and fall back
+// gracefully — this just suppresses the spurious overlay caused by browser
+// extensions hijacking fetch and emitting the rejection before our async/await
+// chain attaches its handler. We log a warning so developers can still notice.
+if (typeof window !== "undefined" && !(window as { __keypFetchGuardInstalled?: boolean }).__keypFetchGuardInstalled) {
+  (window as { __keypFetchGuardInstalled?: boolean }).__keypFetchGuardInstalled = true;
+  window.addEventListener("unhandledrejection", (ev) => {
+    const reason = ev.reason as { message?: string; name?: string } | undefined;
+    const msg = reason?.message ?? String(reason ?? "");
+    const name = reason?.name ?? "";
+    if (
+      msg.includes("Failed to fetch") ||
+      msg.includes("Network request failed") ||
+      msg.includes("NetworkError") ||
+      name === "AbortError"
+    ) {
+      // eslint-disable-next-line no-console
+      console.warn("[KeyP] suppressed transient network rejection:", msg);
+      ev.preventDefault();
+    }
+  });
+}
+
 const queryClient = new QueryClient();
 
 function RootLayoutNav() {
