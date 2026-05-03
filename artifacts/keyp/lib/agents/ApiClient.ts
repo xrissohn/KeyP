@@ -23,6 +23,30 @@ function getApiBase(): string {
   return `https://${domain}/api`;
 }
 
+// Build a click-safe URL that routes the user through our /api/redirect
+// proxy. The proxy re-checks reachability + soft-404 at click time and falls
+// back to a Google search for `fallbackQuery` if the destination is dead.
+// Returns the raw URL unchanged when no API base is available (e.g. SSR /
+// missing EXPO_PUBLIC_DOMAIN) so the user still gets *something* clickable.
+export function buildSafeOpenUrl(
+  destinationUrl: string | undefined | null,
+  fallbackQuery: string,
+): string | undefined {
+  const q = fallbackQuery.trim();
+  const googleFallback = q
+    ? `https://www.google.com/search?q=${encodeURIComponent(q)}`
+    : undefined;
+  if (!destinationUrl) return googleFallback;
+  const base = getApiBase();
+  // Fail CLOSED: if we can't reach our /api/redirect proxy we must NOT
+  // hand the raw (possibly dead) URL to the user. Drop them onto a Google
+  // search for the topic instead so they always land somewhere useful.
+  if (!base) return googleFallback ?? destinationUrl;
+  const params = new URLSearchParams({ u: destinationUrl });
+  if (q) params.set('q', q);
+  return `${base}/redirect?${params.toString()}`;
+}
+
 async function postJson<T>(path: string, body: unknown, timeoutMs = 30000): Promise<T> {
   const base = getApiBase();
   if (!base) throw new Error('API base URL unavailable');

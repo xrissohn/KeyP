@@ -15,6 +15,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfidenceBadge from '@/components/ConfidenceBadge';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { buildSafeOpenUrl } from '@/lib/agents/ApiClient';
 import type { SourceType } from '@/types';
 
 const SOURCE_COLORS: Record<SourceType, string> = {
@@ -134,7 +135,13 @@ export default function AlertDetailScreen() {
         {alert.originalUrl && (
           <TouchableOpacity
             style={[styles.sourceLink, { backgroundColor: colors.card, borderColor: colors.border }]}
-            onPress={() => alert.originalUrl && Linking.openURL(alert.originalUrl)}
+            onPress={() => {
+              const target = buildSafeOpenUrl(
+                alert.originalUrl,
+                `${alert.interestName} ${alert.title}`,
+              );
+              if (target) Linking.openURL(target).catch(() => {});
+            }}
             activeOpacity={0.8}
           >
             <View style={[styles.sourceLinkIcon, { backgroundColor: sourceColor + '20' }]}>

@@ -120,33 +120,99 @@ async function fetchWithSafeRedirects(
   throw new Error("blocked: too many redirects");
 }
 
-async function isUrlReachable(url: string): Promise<boolean> {
+// Soft-404 detector. Many SPAs / community sites (meetup.com, university KSA
+// pages, K-pop fandom sites, etc.) return HTTP 200 even for non-existent
+// paths and only show "page not found" in the rendered body. We sniff the
+// first ~64KB of the response for these markers in EN/KO/JA before declaring
+// the URL truly reachable.
+// Soft-404 markers — kept intentionally NARROW to minimize false positives.
+// Generic phrases like "not found" appearing anywhere in the body cause many
+// real pages (forum threads, news comments) to be misclassified as dead, so
+// we only match these phrases when they appear in <title>, headings, or
+// adjacent to 404, OR as full localized "page not found" sentences.
+const SOFT_404_MARKERS = [
+  /<title[^>]*>[^<]{0,80}\b404\b[^<]{0,80}<\/title>/i,
+  /<title[^>]*>[^<]{0,120}(?:page\s+not\s+found|not\s+found|doesn'?t\s+exist|no\s+longer\s+available)[^<]{0,80}<\/title>/i,
+  /<h1[^>]*>[^<]{0,120}(?:page\s+not\s+found|404\s+not\s+found|doesn'?t\s+exist|no\s+longer\s+available)[^<]{0,80}<\/h1>/i,
+  /\bHTTP\s+404\b/,
+  /\b404\s*[-—:|]\s*(?:page\s+)?not\s+found\b/i,
+  /페이지(?:를|가)?\s*찾을\s*수\s*없/, // 페이지를 찾을 수 없습니다
+  /존재하지\s*않는\s*(?:페이지|글|게시물|이벤트)/,
+  /삭제(?:된|되었)\s*(?:게시물|페이지|글)/,
+  /ページが見つかりません/,            // Japanese
+];
+
+async function probeUrl(
+  url: string,
+  timeoutMs = 6000,
+): Promise<{ ok: boolean; reason?: string }> {
   const ua =
     "Mozilla/5.0 (compatible; KeypBot/1.0; +https://keyp.replit.app)";
   const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), 5000);
+  const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   try {
-    let res = await fetchWithSafeRedirects(url, {
-      method: "HEAD",
+    // Always use GET — HEAD lies on too many CDNs / SPAs. We only read the
+    // first 64KB of the body for soft-404 sniff to keep this cheap.
+    const res = await fetchWithSafeRedirects(url, {
+      method: "GET",
       signal: ctrl.signal,
-      headers: { "User-Agent": ua, Accept: "*/*" },
+      headers: {
+        "User-Agent": ua,
+        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+        "Accept-Language": "ko,en;q=0.8",
+      },
     });
-    if (res.status === 405 || res.status === 501) {
-      res = await fetchWithSafeRedirects(url, {
-        method: "GET",
-        signal: ctrl.signal,
-        headers: { "User-Agent": ua, Accept: "*/*", Range: "bytes=0-0" },
-      });
+    if (res.status === 404 || res.status === 410) {
+      return { ok: false, reason: `status_${res.status}` };
     }
-    if (res.status === 404 || res.status === 410) return false;
-    if (res.status >= 500 && res.status < 600) return false;
-    return true;
-  } catch {
-    return false;
+    if (res.status >= 500 && res.status < 600) {
+      return { ok: false, reason: `status_${res.status}` };
+    }
+    if (res.status >= 400 && res.status !== 401 && res.status !== 403 && res.status !== 405 && res.status !== 429) {
+      return { ok: false, reason: `status_${res.status}` };
+    }
+    // Sniff first ~64KB for soft-404 markers, but only on text/html responses.
+    // For non-HTML responses we MUST still drain/cancel the body stream so
+    // we don't leak sockets / bandwidth on large binaries.
+    const ct = (res.headers.get("content-type") ?? "").toLowerCase();
+    if (ct.includes("text/html") || ct.includes("application/xhtml")) {
+      const reader = res.body?.getReader();
+      if (reader) {
+        let received = 0;
+        const chunks: Uint8Array[] = [];
+        const MAX = 64 * 1024;
+        while (received < MAX) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          chunks.push(value);
+          received += value.byteLength;
+        }
+        try { await reader.cancel(); } catch {}
+        const buf = Buffer.concat(chunks.map((c) => Buffer.from(c)));
+        const sample = buf.toString("utf8", 0, Math.min(buf.byteLength, MAX));
+        for (const re of SOFT_404_MARKERS) {
+          if (re.test(sample)) return { ok: false, reason: "soft_404" };
+        }
+      }
+    } else {
+      // Non-HTML (PDF / video / image / JSON). We don't need the body — just
+      // cancel so the underlying connection is freed promptly.
+      try { await res.body?.cancel(); } catch {}
+    }
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: err instanceof Error ? err.message : "fetch_failed" };
   } finally {
     clearTimeout(timer);
   }
 }
+
+async function isUrlReachable(url: string): Promise<boolean> {
+  const r = await probeUrl(url, 5000);
+  return r.ok;
+}
+
+export { probeUrl, assertSafeUrl };
 
 async function pruneUnreachableCandidates<
   T extends { url?: string; title: string },

@@ -6,6 +6,7 @@ import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native'
 import ConfidenceBadge from '@/components/ConfidenceBadge';
 import { useApp } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { buildSafeOpenUrl } from '@/lib/agents/ApiClient';
 import type { Alert, SourceType } from '@/types';
 
 const SOURCE_ICONS: Record<SourceType, { name: keyof typeof Feather.glyphMap; color: string }> = {
@@ -52,11 +53,16 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
   };
 
   const sourceUrl = alert.source.url ?? alert.originalUrl;
+  // Always route taps through the server's /api/redirect proxy so dead links
+  // (legacy AsyncStorage data, soft-404 SPAs, links that died after caching)
+  // fall back to a Google search instead of "page not found".
   const handleOpenSource = (e: { stopPropagation?: () => void }) => {
     e.stopPropagation?.();
-    if (!sourceUrl) return;
+    const fallbackQuery = `${alert.interestName} ${alert.title}`;
+    const target = buildSafeOpenUrl(sourceUrl, fallbackQuery);
+    if (!target) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL(sourceUrl).catch(() => {
+    Linking.openURL(target).catch(() => {
       // Silent fail — user-facing error would be too noisy here.
     });
   };
