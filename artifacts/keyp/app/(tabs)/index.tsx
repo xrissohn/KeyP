@@ -67,13 +67,24 @@ export default function FeedScreen() {
             </Text>
           </View>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.savedBtn, { backgroundColor: colors.secondary }]}
-          onPress={() => router.push('/saved')}
-          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-        >
-          <Feather name="bookmark" size={20} color={colors.primary} />
-        </TouchableOpacity>
+        <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: colors.primary }]}
+            onPress={() => router.push('/interest/add')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('interest.add.title')}
+          >
+            <Feather name="plus" size={22} color={colors.primaryForeground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.headerBtn, { backgroundColor: colors.secondary }]}
+            onPress={() => router.push('/saved')}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          >
+            <Feather name="bookmark" size={20} color={colors.primary} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <FlatList
@@ -157,6 +168,8 @@ const styles = StyleSheet.create({
   logoImg: { width: 36, height: 36, borderRadius: 9 },
   subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
   savedBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   filterList: { paddingHorizontal: 20, paddingBottom: 16, gap: 8 },
   filterChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterEmoji: { fontSize: 13 },
