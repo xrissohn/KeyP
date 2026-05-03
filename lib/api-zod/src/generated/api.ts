@@ -54,6 +54,36 @@ export const ParseInterestResponse = zod.object({
     suggestedSources: zod.array(
       zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
     ),
+    targetPersona: zod
+      .string()
+      .nullish()
+      .describe(
+        "Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean.",
+      ),
+    searchStrategy: zod
+      .array(
+        zod.object({
+          channel: zod
+            .string()
+            .describe(
+              "Specific platform\/community\/handle\/hashtag (e.g. r\/AskNYC, Hinge NYC, @nyukorean).",
+            ),
+          query: zod
+            .string()
+            .describe(
+              "Concrete search query or phrase to run on that channel.",
+            ),
+          rationale: zod
+            .string()
+            .describe(
+              "One Korean sentence explaining why this channel is high-signal for the goal.",
+            ),
+        }),
+      )
+      .optional()
+      .describe(
+        "Detective-style ordered investigation plan. Each entry names a specific channel\/community\/platform\/handle\/hashtag and a concrete query angle, used directly by the Collector to drive web search.",
+      ),
   }),
   steps: zod.array(
     zod.object({
@@ -130,6 +160,36 @@ export const TrackInterestBody = zod.object({
     suggestedSources: zod.array(
       zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
     ),
+    targetPersona: zod
+      .string()
+      .nullish()
+      .describe(
+        "Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean.",
+      ),
+    searchStrategy: zod
+      .array(
+        zod.object({
+          channel: zod
+            .string()
+            .describe(
+              "Specific platform\/community\/handle\/hashtag (e.g. r\/AskNYC, Hinge NYC, @nyukorean).",
+            ),
+          query: zod
+            .string()
+            .describe(
+              "Concrete search query or phrase to run on that channel.",
+            ),
+          rationale: zod
+            .string()
+            .describe(
+              "One Korean sentence explaining why this channel is high-signal for the goal.",
+            ),
+        }),
+      )
+      .optional()
+      .describe(
+        "Detective-style ordered investigation plan. Each entry names a specific channel\/community\/platform\/handle\/hashtag and a concrete query angle, used directly by the Collector to drive web search.",
+      ),
   }),
   rawText: zod.string().max(trackInterestBodyRawTextMax).optional(),
 });
@@ -199,6 +259,36 @@ export const GenerateAlertsBody = zod.object({
     suggestedSources: zod.array(
       zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
     ),
+    targetPersona: zod
+      .string()
+      .nullish()
+      .describe(
+        "Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean.",
+      ),
+    searchStrategy: zod
+      .array(
+        zod.object({
+          channel: zod
+            .string()
+            .describe(
+              "Specific platform\/community\/handle\/hashtag (e.g. r\/AskNYC, Hinge NYC, @nyukorean).",
+            ),
+          query: zod
+            .string()
+            .describe(
+              "Concrete search query or phrase to run on that channel.",
+            ),
+          rationale: zod
+            .string()
+            .describe(
+              "One Korean sentence explaining why this channel is high-signal for the goal.",
+            ),
+        }),
+      )
+      .optional()
+      .describe(
+        "Detective-style ordered investigation plan. Each entry names a specific channel\/community\/platform\/handle\/hashtag and a concrete query angle, used directly by the Collector to drive web search.",
+      ),
   }),
   count: zod
     .number()

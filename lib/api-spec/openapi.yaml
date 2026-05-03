@@ -203,6 +203,26 @@ components:
           items:
             type: string
             enum: [youtube, twitter, reddit, rss, match]
+        targetPersona:
+          type: string
+          nullable: true
+          description: "Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean."
+        searchStrategy:
+          type: array
+          description: "Detective-style ordered investigation plan. Each entry names a specific channel/community/platform/handle/hashtag and a concrete query angle, used directly by the Collector to drive web search."
+          items:
+            type: object
+            required: [channel, query, rationale]
+            properties:
+              channel:
+                type: string
+                description: "Specific platform/community/handle/hashtag (e.g. r/AskNYC, Hinge NYC, @nyukorean)."
+              query:
+                type: string
+                description: "Concrete search query or phrase to run on that channel."
+              rationale:
+                type: string
+                description: "One Korean sentence explaining why this channel is high-signal for the goal."
     AgentStep:
       type: object
       required: [agent, status, message]

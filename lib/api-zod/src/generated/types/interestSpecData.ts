@@ -8,6 +8,7 @@
 import type { InterestSpecDataIntentType } from "./interestSpecDataIntentType";
 import type { InterestSpecDataMatchMode } from "./interestSpecDataMatchMode";
 import type { InterestSpecDataPrivacyLevel } from "./interestSpecDataPrivacyLevel";
+import type { InterestSpecDataSearchStrategyItem } from "./interestSpecDataSearchStrategyItem";
 import type { InterestSpecDataSuggestedSourcesItem } from "./interestSpecDataSuggestedSourcesItem";
 import type { InterestSpecDataTrustNeed } from "./interestSpecDataTrustNeed";
 import type { InterestSpecDataUrgency } from "./interestSpecDataUrgency";
@@ -24,4 +25,8 @@ export interface InterestSpecData {
   privacyLevel: InterestSpecDataPrivacyLevel;
   negativeConstraints?: string[];
   suggestedSources: InterestSpecDataSuggestedSourcesItem[];
+  /** Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean. */
+  targetPersona?: string | null;
+  /** Detective-style ordered investigation plan. Each entry names a specific channel/community/platform/handle/hashtag and a concrete query angle, used directly by the Collector to drive web search. */
+  searchStrategy?: InterestSpecDataSearchStrategyItem[];
 }

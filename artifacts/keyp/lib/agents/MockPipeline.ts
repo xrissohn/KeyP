@@ -137,6 +137,8 @@ export async function generateAlertsForSpec(
         privacyLevel: spec.privacyLevel,
         negativeConstraints: spec.negativeConstraints,
         suggestedSources: spec.suggestedSources,
+        targetPersona: spec.targetPersona,
+        searchStrategy: spec.searchStrategy,
       },
       count
     );

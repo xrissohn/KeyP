@@ -81,6 +81,15 @@ export const InterestSpecDataSuggestedSourcesItem = {
   match: "match",
 } as const;
 
+export type InterestSpecDataSearchStrategyItem = {
+  /** Specific platform/community/handle/hashtag (e.g. r/AskNYC, Hinge NYC, @nyukorean). */
+  channel: string;
+  /** Concrete search query or phrase to run on that channel. */
+  query: string;
+  /** One Korean sentence explaining why this channel is high-signal for the goal. */
+  rationale: string;
+};
+
 export interface InterestSpecData {
   intentType: InterestSpecDataIntentType;
   topic: string;
@@ -93,6 +102,10 @@ export interface InterestSpecData {
   privacyLevel: InterestSpecDataPrivacyLevel;
   negativeConstraints?: string[];
   suggestedSources: InterestSpecDataSuggestedSourcesItem[];
+  /** Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean. */
+  targetPersona?: string | null;
+  /** Detective-style ordered investigation plan. Each entry names a specific channel/community/platform/handle/hashtag and a concrete query angle, used directly by the Collector to drive web search. */
+  searchStrategy?: InterestSpecDataSearchStrategyItem[];
 }
 
 export type AgentStepStatus =

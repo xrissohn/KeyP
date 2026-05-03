@@ -45,6 +45,8 @@ export interface InterestSpec {
   privacyLevel: PrivacyLevel;
   negativeConstraints: string[];
   suggestedSources: SourceType[];
+  targetPersona?: string;
+  searchStrategy?: { channel: string; query: string; rationale: string }[];
   isActive: boolean;
   createdAt: string;
   updatedAt: string;

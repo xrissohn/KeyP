@@ -19,6 +19,7 @@ export * from "./interestSpecData";
 export * from "./interestSpecDataIntentType";
 export * from "./interestSpecDataMatchMode";
 export * from "./interestSpecDataPrivacyLevel";
+export * from "./interestSpecDataSearchStrategyItem";
 export * from "./interestSpecDataSuggestedSourcesItem";
 export * from "./interestSpecDataTrustNeed";
 export * from "./interestSpecDataUrgency";

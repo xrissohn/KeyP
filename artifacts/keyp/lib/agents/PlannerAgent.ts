@@ -162,6 +162,16 @@ export async function parseInterest(
       privacyLevel: safeEnum(s.privacyLevel, VALID_PRIVACY, 'public'),
       negativeConstraints: s.negativeConstraints ?? [],
       suggestedSources: sources.length > 0 ? sources : ['twitter', 'youtube', 'reddit', 'rss'],
+      targetPersona: typeof s.targetPersona === 'string' && s.targetPersona.length > 0 ? s.targetPersona : undefined,
+      searchStrategy: Array.isArray(s.searchStrategy)
+        ? s.searchStrategy
+            .filter((it: any) => it && typeof it.channel === 'string' && typeof it.query === 'string')
+            .map((it: any) => ({
+              channel: String(it.channel),
+              query: String(it.query),
+              rationale: typeof it.rationale === 'string' ? it.rationale : '',
+            }))
+        : undefined,
       isActive: true,
       createdAt: now,
       updatedAt: now,

@@ -19,7 +19,7 @@ import { anthropic } from "@workspace/integrations-anthropic-ai";
 const router: IRouter = Router();
 
 const PLANNER_MODEL = "gpt-5.4";
-const COLLECTOR_MODEL = "perplexity/sonar";
+const COLLECTOR_MODEL = "perplexity/sonar-pro";
 const VERIFIER_MODEL = "claude-sonnet-4-6";
 const PLANNER_MAX_TOKENS = 4096;
 const COLLECTOR_MAX_TOKENS = 8192;
@@ -51,18 +51,32 @@ function fallbackPlanner(rawText: string): InterestSpecData {
     privacyLevel: intentType === "match" ? "friends" : "public",
     negativeConstraints: [],
     suggestedSources: ["twitter", "youtube", "reddit", "rss"],
+    targetPersona: undefined,
+    searchStrategy: [],
   };
 }
 
 function extractJsonObject(text: string): unknown {
+  // Try fenced ```json ... ``` blocks first; otherwise fall back to first {...}.
   const fenced = text.match(/```(?:json)?\s*([\s\S]*?)```/);
-  const raw = fenced?.[1] ?? text;
-  const start = raw.indexOf("{");
-  const end = raw.lastIndexOf("}");
-  if (start === -1 || end === -1 || end <= start) {
-    throw new Error("No JSON object found in response");
+  const candidates = fenced ? [fenced[1]!, text] : [text];
+  for (const raw of candidates) {
+    const start = raw.indexOf("{");
+    const end = raw.lastIndexOf("}");
+    if (start === -1 || end === -1 || end <= start) continue;
+    try {
+      return JSON.parse(raw.slice(start, end + 1));
+    } catch {
+      // Try removing trailing commas, common LLM mistake
+      try {
+        const cleaned = raw.slice(start, end + 1).replace(/,(\s*[}\]])/g, "$1");
+        return JSON.parse(cleaned);
+      } catch {
+        // continue
+      }
+    }
   }
-  return JSON.parse(raw.slice(start, end + 1));
+  throw new Error("No parseable JSON object found in response");
 }
 
 router.post("/agents/parse-interest", async (req, res) => {
@@ -85,27 +99,37 @@ router.post("/agents/parse-interest", async (req, res) => {
       messages: [
         {
           role: "system",
-          content: `You are the Planner Agent of KeyP, a Korean-language interest tracking app.
-Convert the user's natural-language interest description into a structured JSON spec.
+          content: `You are the Planner Agent of KeyP — think like a top-tier private investigator / detective. Your job is to read the user's Korean interest in ONE pass and produce both (a) a normalized spec and (b) a concrete, ordered investigation plan that names SPECIFIC platforms, communities, handles, hashtags, or sites where the signal is most likely to appear FIRST.
+
 Respond ONLY with JSON matching this exact schema (no prose, no markdown):
 {
   "intentType": "monitor"|"alert"|"opportunity"|"match"|"creator_watch"|"travel"|"local_signal",
   "topic": "<short Korean topic, max 30 chars>",
   "entities": ["<key entity 1>", "<key entity 2>", "..."],
-  "locationScope": "<city or region in Korean, or null>",
+  "locationScope": "<city or region, Korean if natural, or null>",
   "urgency": "high"|"medium"|"low",
   "desiredOutcome": "<one-line Korean outcome statement>",
   "trustNeed": "high"|"medium"|"low",
   "matchMode": "companion"|"friend"|"collaborate"|"meal_mate"|"date"|null,
   "privacyLevel": "public"|"friends"|"private",
   "negativeConstraints": ["<things to avoid in Korean>"],
-  "suggestedSources": ["youtube"|"twitter"|"reddit"|"rss"|"match", ...]
+  "suggestedSources": ["youtube"|"twitter"|"reddit"|"rss"|"match", ...],
+  "targetPersona": "<Korean: who/what the user is searching FOR — demographic, location, behavior, intent>",
+  "searchStrategy": [
+    { "channel": "<specific platform/community/handle/hashtag/site>", "query": "<concrete search phrase>", "rationale": "<one Korean sentence on why this is high-signal>" }
+  ]
 }
-Rules:
-- intentType=match implies matchMode set; otherwise null.
-- suggestedSources MUST be ordered by likelihood of finding signal first.
-- entities: 2-5 items. Use original Korean nouns from the text.
-- urgency=high if user uses words like 긴급/지금/빨리/내일.`,
+
+Detective rules — apply ALL:
+- INFER context aggressively. From "다음주 뉴욕에 놀러가는데 한국 남성을 만나고 싶어하는 미국 20대 여학생이 있으면 알려줘" you should infer: traveler is the asker; TARGET persona is "뉴욕 거주/체류 한국계 또는 한국 남성에 관심 있는 미국 20대 여대생/직장인"; locationScope="뉴욕"; urgency="high" (다음 주); intentType="match" with matchMode="date".
+- searchStrategy: 4–7 entries, ORDERED by likelihood of finding the SPECIFIC target first. Each entry must name a CONCRETE channel — not "Twitter" but "@nyukorean on X", not "Reddit" but "r/AskNYC OR r/nyu OR r/Korean", not "YouTube" but "NYU Korean Student Association YouTube". Include dating/matching apps when relevant ("Hinge NYC filter: Korean preference", "Bumble NYC", "Meeff", "Sakura Live"), location-specific communities (Naver 카페 뉴욕맘/뉴욕코리안, 미시USA, Reddit r/koreanamerican), local university clubs (Columbia/NYU/Fordham KSA), creator channels (NYC Korean lifestyle YouTubers, Threads/Instagram NYC Korean food/lifestyle handles).
+- query: phrase that an investigator would actually paste into the channel's search — not generic, mention location + intent + time window when meaningful.
+- rationale: prove you understand the persona's habits — "이 커뮤니티는 뉴욕 한인 20대 여성이 데이팅/만남 정보를 가장 활발히 공유하는 곳이라 첫 신호 가능성이 매우 높음."
+- suggestedSources: still constrained to the enum, but ORDER it consistently with searchStrategy (e.g. if your top searchStrategy entries are dating-app reviews on Reddit, put "reddit" first).
+- intentType=match → matchMode set; otherwise null.
+- entities: 3-6 nouns mixing the asker's words AND inferred concepts (locations, platforms, persona traits).
+- urgency=high for keywords 긴급/지금/빨리/내일/이번 주/다음 주.
+- If the user's text is vague, still produce 4+ searchStrategy entries by inferring the most plausible interpretation — never return an empty searchStrategy.`,
         },
         {
           role: "user",
@@ -115,6 +139,17 @@ Rules:
     });
     const content = completion.choices[0]?.message?.content ?? "{}";
     const json = JSON.parse(content) as Record<string, unknown>;
+    const rawStrategy = Array.isArray(json.searchStrategy) ? json.searchStrategy : [];
+    const searchStrategy = rawStrategy
+      .filter((s): s is Record<string, unknown> => typeof s === "object" && s !== null)
+      .slice(0, 8)
+      .map((s) => ({
+        channel: String(s.channel ?? "").slice(0, 120),
+        query: String(s.query ?? "").slice(0, 200),
+        rationale: String(s.rationale ?? "").slice(0, 200),
+      }))
+      .filter((s) => s.channel.length > 0 && s.query.length > 0);
+
     spec = {
       intentType: (json.intentType as InterestSpecData["intentType"]) ?? "monitor",
       topic:
@@ -138,11 +173,16 @@ Rules:
         Array.isArray(json.suggestedSources) && json.suggestedSources.length > 0
           ? (json.suggestedSources as InterestSpecData["suggestedSources"])
           : ["twitter", "youtube", "reddit", "rss"],
+      targetPersona:
+        typeof json.targetPersona === "string" && json.targetPersona.length > 0
+          ? json.targetPersona
+          : undefined,
+      searchStrategy,
     };
     steps.push({
       agent: "Planner",
       status: "success",
-      message: `의도 "${spec.intentType}" 식별 · 엔티티 ${spec.entities.length}개 추출 (GPT-5.4)`,
+      message: `의도 "${spec.intentType}" 추론 · 페르소나 식별 · 조사 채널 ${searchStrategy.length}개 우선순위화 (GPT-5.4)`,
       durationMs: Date.now() - plannerStart,
     });
   } catch (err) {
@@ -157,10 +197,13 @@ Rules:
   }
 
   const routerStart = Date.now();
+  const topChannel = spec.searchStrategy?.[0]?.channel;
   steps.push({
     agent: "SourceRouter",
     status: "success",
-    message: `${spec.suggestedSources.length}개 소스 우선순위 계산 (${spec.suggestedSources[0]} 1순위)`,
+    message: topChannel
+      ? `조사 우선 채널: ${topChannel} (총 ${spec.searchStrategy?.length ?? 0}개 채널 큐잉)`
+      : `${spec.suggestedSources.length}개 소스 우선순위 계산 (${spec.suggestedSources[0]} 1순위)`,
     durationMs: Date.now() - routerStart + 12,
   });
 
@@ -224,24 +267,13 @@ router.post("/agents/generate-alerts", async (req, res) => {
   const collectorStart = Date.now();
   let candidates: CollectedCandidate[] = [];
 
-  if (spec.intentType === "match") {
-    // Skip web search for internal matching — synthesize match candidates instead.
-    candidates = Array.from({ length: requested }, (_, i) => ({
-      title: `${spec.topic} 관련 사용자와 매칭 가능`,
-      summary: `${spec.entities.slice(0, 2).join(", ") || spec.topic} 관심사를 공유하는 사용자와 매칭 점수가 높게 측정되었습니다.`,
-      reason: `공유 관심사: ${spec.entities.slice(0, 3).join(", ") || spec.topic}`,
-      sourceType: "match" as const,
-      sourceName: "KeyP 매칭",
-      minutesAgo: 5 + i * 30,
-      tags: spec.entities.slice(0, 3),
-    }));
-    steps.push({
-      agent: "Collector",
-      status: "success",
-      message: `${candidates.length}개 매칭 후보 생성 (내부 인덱스)`,
-      durationMs: Date.now() - collectorStart,
-    });
-  } else {
+  // Always run real web search via the Planner's investigation plan, even for
+  // intentType=match. The "match" intent simply means the asker is looking for
+  // people/communities — the real-world signals about where those people
+  // congregate (dating apps, KSA Reddit/Instagram, niche cafes) are exactly
+  // what the user wants to see, NOT a synthetic placeholder. Internal user
+  // matching can be re-introduced later behind a feature flag.
+  {
     try {
       const queryHints = [
         spec.topic,
@@ -251,15 +283,31 @@ router.post("/agents/generate-alerts", async (req, res) => {
         .filter(Boolean)
         .join(" / ");
       const sourcePref = spec.suggestedSources.join(", ");
+      const strategyBlock =
+        (spec.searchStrategy?.length ?? 0) > 0
+          ? spec.searchStrategy!
+              .map(
+                (s, i) =>
+                  `  ${i + 1}. CHANNEL: ${s.channel}\n     QUERY: ${s.query}\n     WHY: ${s.rationale}`,
+              )
+              .join("\n")
+          : "  (none — fall back to general web search using query hints)";
       const completion = await openrouter.chat.completions.create({
         model: COLLECTOR_MODEL,
         max_tokens: COLLECTOR_MAX_TOKENS,
         messages: [
           {
             role: "system",
-            content: `You are the Collector Agent of KeyP. Use real-time web search to find ${requested} recent, specific, high-signal items matching the user's Korean-language interest.
-Prefer sources in this priority order: ${sourcePref}.
+            content: `You are the Collector Agent of KeyP — a public-content research assistant. You search the OPEN web for publicly published posts, articles, videos, community threads, events, app reviews, and creator content related to the user's topic.
+
+CRITICAL — what you are doing and not doing:
+- You search for PUBLIC CONTENT ABOUT a topic (posts, articles, threads, videos, reviews, event listings, community discussions, dating-app/community trend reports). You are NOT identifying or profiling specific private individuals. Treat dating-app/community references as discussions and reviews of those PLATFORMS and the topics inside them, not as a search for any individual person.
+- Always return concrete public-content findings: Reddit threads, news/blog articles, YouTube videos, Twitter/X posts, Instagram public posts, event pages, app store reviews, Naver/Daum cafe public posts, university student-org public pages, etc.
+
+You will receive an ORDERED investigation plan. WORK THE LIST IN ORDER. For each channel, run real web search restricted to that channel/community/handle when possible (e.g. Reddit: "site:reddit.com" + subreddit; X: handle/hashtag; YouTube: channel/keyword; Instagram: hashtag; news: site filter). If a specific channel has no direct hit, search ADJACENT public content on the same topic (e.g. blogs/news about Korean-American dating in NYC, K-pop community meetups, NYC KSA event recaps) so the user always gets a real signal.
+
 Map source URLs to type: youtube.com/youtu.be→youtube, twitter.com/x.com→twitter, reddit.com→reddit, anything else→rss.
+
 Respond ONLY with strict JSON, no prose:
 {
   "alerts": [
@@ -268,13 +316,16 @@ Respond ONLY with strict JSON, no prose:
       "summary": "<Korean 2-3 sentence factual summary of what was found, 80-220 chars>",
       "url": "<source URL>",
       "sourceName": "<publisher or channel/handle name>",
-      "publishedHoursAgo": <number, your estimate from the source>,
+      "matchedChannel": "<which Planner channel surfaced this — copy from the list above, or 'adjacent' if you broadened>",
+      "publishedHoursAgo": <number>,
       "tags": ["<tag1>", "<tag2>", "<tag3>"]
     }
   ]
 }
-Rules:
-- Each item MUST be a real, specific, recent finding — no generic statements, no placeholders.
+
+Hard rules:
+- NEVER return an empty alerts array. If no exact match exists in the listed channels, broaden to the most relevant adjacent public content on the same topic and return at least 1 real, dated finding with a real URL.
+- Each item MUST be real public web content with a real URL — no placeholders, no "I cannot help with that", no apologies.
 - Translate non-Korean source titles into natural Korean.
 - publishedHoursAgo: best estimate from the page; if unknown use 6.
 - Tags: salient nouns from the content (Korean preferred).`,
@@ -283,18 +334,38 @@ Rules:
             role: "user",
             content: `Topic: ${spec.topic}
 Intent: ${spec.intentType}
+Target persona: ${spec.targetPersona ?? "(not specified)"}
 Entities: ${spec.entities.join(", ")}
 Location: ${spec.locationScope ?? "(no location restriction)"}
 Urgency: ${spec.urgency}
 User goal: ${spec.desiredOutcome}
-Search query hints: ${queryHints}
-Return ${requested} items.`,
+General source preference order (fallback only): ${sourcePref}
+Generic query hints (fallback only): ${queryHints}
+
+INVESTIGATION PLAN — execute in this order:
+${strategyBlock}
+
+Return up to ${requested} items.`,
           },
         ],
       });
       const content = completion.choices[0]?.message?.content ?? "";
-      const json = extractJsonObject(content) as { alerts?: unknown[] };
+      let json: { alerts?: unknown[] } = {};
+      try {
+        json = extractJsonObject(content) as { alerts?: unknown[] };
+      } catch (parseErr) {
+        req.log.warn(
+          { parseErr, contentPreview: content.slice(0, 800) },
+          "Collector JSON parse failed",
+        );
+      }
       const rawAlerts: unknown[] = Array.isArray(json.alerts) ? json.alerts : [];
+      if (rawAlerts.length === 0) {
+        req.log.warn(
+          { contentPreview: content.slice(0, 1000) },
+          "Collector returned 0 alerts",
+        );
+      }
       candidates = rawAlerts
         .filter((a): a is Record<string, unknown> => typeof a === "object" && a !== null)
         .slice(0, requested)
@@ -328,6 +399,52 @@ Return ${requested} items.`,
               : spec.entities.slice(0, 3),
           };
         });
+      if (candidates.length === 0) {
+        try {
+          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"tags":["<tag1>","<tag2>"]}]}. Real URLs only. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme.`;
+          const backup = await openrouter.chat.completions.create({
+            model: COLLECTOR_MODEL,
+            max_tokens: COLLECTOR_MAX_TOKENS,
+            messages: [
+              { role: "system", content: "You are a public-content web research assistant. You return concrete, real, recently published public web findings (URLs included). You never return an empty result; if the exact topic is scarce, broaden to adjacent public content on the same theme. Output strict JSON only." },
+              { role: "user", content: backupQuery },
+            ],
+          });
+          const bcontent = backup.choices[0]?.message?.content ?? "";
+          let bjson: { alerts?: unknown[] } = {};
+          try { bjson = extractJsonObject(bcontent) as { alerts?: unknown[] }; } catch {}
+          const bRaw: unknown[] = Array.isArray(bjson.alerts) ? bjson.alerts : [];
+          if (bRaw.length > 0) {
+            req.log.info({ recovered: bRaw.length }, "Collector backup pass recovered candidates");
+          } else {
+            req.log.warn({ contentPreview: bcontent.slice(0, 800) }, "Collector backup pass also returned 0");
+          }
+          candidates = bRaw
+            .filter((a): a is Record<string, unknown> => typeof a === "object" && a !== null)
+            .slice(0, requested)
+            .map((a): CollectedCandidate => {
+              const url = typeof a.url === "string" ? a.url : undefined;
+              const detected: AlertData["source"]["type"] = url
+                ? /youtube\.com|youtu\.be/i.test(url) ? "youtube"
+                : /twitter\.com|x\.com/i.test(url) ? "twitter"
+                : /reddit\.com/i.test(url) ? "reddit"
+                : "rss"
+                : defaultSourceType(spec);
+              const hoursAgo = typeof a.publishedHoursAgo === "number" ? Math.max(0, a.publishedHoursAgo) : 6;
+              return {
+                title: String(a.title ?? `${spec.topic} 관련 신호`),
+                summary: String(a.summary ?? `${spec.topic} 관련 새로운 정보가 감지되었습니다.`),
+                sourceType: detected,
+                sourceName: typeof a.sourceName === "string" && a.sourceName.length > 0 ? a.sourceName : detected,
+                url,
+                minutesAgo: Math.round(hoursAgo * 60),
+                tags: Array.isArray(a.tags) ? a.tags.slice(0, 4).map(String) : spec.entities.slice(0, 3),
+              };
+            });
+        } catch (backupErr) {
+          req.log.error({ backupErr }, "Collector backup pass failed");
+        }
+      }
       steps.push({
         agent: "Collector",
         status: candidates.length > 0 ? "success" : "partial",
@@ -359,24 +476,6 @@ Return ${requested} items.`,
       agent: "Verifier",
       status: "partial",
       message: "검증할 신호 없음",
-      durationMs: Date.now() - verifierStart,
-    });
-  } else if (spec.intentType === "match") {
-    // For match candidates, no external verification needed; assign deterministic scores.
-    alerts = candidates.map((c, i) => ({
-      title: c.title,
-      summary: c.summary,
-      reason: c.reason ?? `${spec.topic} 매칭 점수 상위`,
-      confidence: 88 - i * 4,
-      freshness: c.minutesAgo < 10 ? "live" : c.minutesAgo < 60 ? "hot" : "recent",
-      source: { type: c.sourceType, name: c.sourceName, url: c.url },
-      tags: c.tags,
-      minutesAgo: c.minutesAgo,
-    }));
-    steps.push({
-      agent: "Verifier",
-      status: "success",
-      message: `${alerts.length}개 매칭 후보 점수 계산`,
       durationMs: Date.now() - verifierStart,
     });
   } else {
@@ -502,6 +601,42 @@ Return exactly ${candidates.length} verifications in the same order.`,
     };
     return order[a.freshness] - order[b.freshness] || b.confidence - a.confidence;
   });
+
+  // Seed guarantee: when the caller asked for exactly 1 (initial registration),
+  // the user must always see at least one most-recent related signal — never
+  // an empty list. If Verifier filtered everything out, rescue the strongest
+  // raw candidate with a softened confidence floor.
+  if (requested === 1 && alerts.length === 0 && candidates.length > 0) {
+    const best = [...candidates].sort((a, b) => a.minutesAgo - b.minutesAgo)[0]!;
+    const freshness: AlertData["freshness"] =
+      best.minutesAgo < 10
+        ? "live"
+        : best.minutesAgo < 60
+        ? "hot"
+        : best.minutesAgo < 360
+        ? "recent"
+        : "older";
+    alerts = [
+      {
+        title: best.title,
+        summary: best.summary,
+        reason:
+          best.reason ?? `${spec.topic} 관련 가장 최근 신호 (검증 점수 미달, 참고용)`,
+        confidence: 55,
+        freshness,
+        source: { type: best.sourceType, name: best.sourceName, url: best.url },
+        tags: best.tags,
+        minutesAgo: best.minutesAgo,
+      },
+    ];
+    steps.push({
+      agent: "Deliverer",
+      status: "partial",
+      message: "검증 통과 신호가 없어 가장 최근 후보를 참고용으로 보존",
+      durationMs: 0,
+    });
+  }
+
   alerts = alerts.slice(0, requested);
   steps.push({
     agent: "Deliverer",
