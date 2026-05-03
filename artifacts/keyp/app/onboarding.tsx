@@ -79,15 +79,13 @@ export default function Onboarding() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topInset + 12 }]}>
-        <View style={styles.logoRow}>
-          <Image
-            source={require('@/assets/images/keyp-logo.png')}
-            style={styles.logoMark}
-            resizeMode="contain"
-            accessibilityLabel="KeyP 로고"
-          />
-          <Text style={[styles.logoLabel, { color: colors.foreground }]}>KeyP</Text>
-        </View>
+        <Image
+          source={require('@/assets/images/keyp-wordmark.png')}
+          style={styles.wordmark}
+          resizeMode="contain"
+          accessibilityLabel="KeyP"
+        />
+
         <TouchableOpacity
           onPress={handleSkip}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
@@ -160,26 +158,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 8,
   },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  logoMark: {
-    width: 32,
-    height: 32,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  logoText: {
-    fontSize: 18,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-  },
-  logoLabel: {
-    fontSize: 18,
-    fontFamily: 'Inter_700Bold',
+  wordmark: {
+    width: 88,
+    height: 28,
   },
   skip: {
     fontSize: 14,
