@@ -14,6 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
 import EmptyState from '@/components/EmptyState';
+import UndoToast from '@/components/UndoToast';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { Interest } from '@/types';
@@ -166,6 +167,7 @@ export default function FeedScreen() {
           />
         }
       />
+      <UndoToast bottomOffset={bottomInset + 80} />
     </View>
   );
 }

@@ -32,7 +32,7 @@ export default function AlertDetailScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { alerts, toggleSaveAlert, setAlertFeedback, hideAlert, markInterestViewed } = useApp();
+  const { alerts, toggleSaveAlert, setAlertFeedback, hideAlert, markAlertRead } = useApp();
   const { language, t } = useI18n();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
@@ -41,8 +41,8 @@ export default function AlertDetailScreen() {
   const alert = alerts.find((a) => a.id === id);
 
   React.useEffect(() => {
-    if (alert) markInterestViewed(alert.interestId);
-  }, [alert, markInterestViewed]);
+    if (alert && !alert.readAt) markAlertRead(alert.id);
+  }, [alert, markAlertRead]);
 
   if (!alert) {
     return (

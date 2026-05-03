@@ -86,6 +86,8 @@ export interface Alert {
   isSaved: boolean;
   feedback?: FeedbackType;
   createdAt: string;
+  /** ISO timestamp when the user opened/marked this individual alert as read. */
+  readAt?: string;
   isMatch?: boolean;
 }
 

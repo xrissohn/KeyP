@@ -51,7 +51,16 @@ interface AppContextType {
   toggleSaveAlert: (alertId: string) => void;
   setAlertFeedback: (alertId: string, feedback: FeedbackType) => void;
   hideAlert: (alertId: string) => void;
+  /** Restore the most recently hidden alert (Undo). */
+  restoreHidden: () => void;
+  /** Permanently dismiss the recently-hidden snapshot (e.g. toast timed out). */
+  dismissHidden: () => void;
+  /** The most recently hidden alert, available for undo. Cleared after timeout. */
+  recentlyHidden: Alert | null;
   updateMatchStatus: (matchId: string, status: Match['status']) => void;
+  /** Mark a single alert as read (sets readAt). */
+  markAlertRead: (alertId: string) => void;
+  /** Mark all alerts within an interest as read AND stamp interest.lastViewedAt. */
   markInterestViewed: (interestId: string) => void;
   getNewAlertCount: (interestId: string) => number;
   savedAlerts: Alert[];
@@ -451,8 +460,49 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     })();
   }, []);
 
+  const [recentlyHidden, setRecentlyHidden] = useState<Alert | null>(null);
+  const hideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const dismissHidden = useCallback(() => {
+    if (hideTimerRef.current) {
+      clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = null;
+    }
+    setRecentlyHidden(null);
+  }, []);
+
   const hideAlert = useCallback((alertId: string) => {
+    const snapshot = alertsRef.current.find((a) => a.id === alertId) ?? null;
     setAlerts((prev) => prev.filter((a) => a.id !== alertId));
+    if (snapshot) {
+      setRecentlyHidden(snapshot);
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+      hideTimerRef.current = setTimeout(() => {
+        setRecentlyHidden(null);
+        hideTimerRef.current = null;
+      }, 5000);
+    }
+  }, []);
+
+  const restoreHidden = useCallback(() => {
+    setRecentlyHidden((current) => {
+      if (current) {
+        setAlerts((prev) =>
+          prev.some((a) => a.id === current.id) ? prev : [current, ...prev]
+        );
+      }
+      if (hideTimerRef.current) {
+        clearTimeout(hideTimerRef.current);
+        hideTimerRef.current = null;
+      }
+      return null;
+    });
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (hideTimerRef.current) clearTimeout(hideTimerRef.current);
+    };
   }, []);
 
   const updateMatchStatus = useCallback((matchId: string, status: Match['status']) => {
@@ -461,24 +511,29 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     );
   }, []);
 
+  const markAlertRead = useCallback((alertId: string) => {
+    const now = new Date().toISOString();
+    setAlerts((prev) =>
+      prev.map((a) => (a.id === alertId && !a.readAt ? { ...a, readAt: now } : a))
+    );
+  }, []);
+
   const markInterestViewed = useCallback((interestId: string) => {
     const now = new Date().toISOString();
     setInterests((prev) =>
       prev.map((i) => (i.id === interestId ? { ...i, lastViewedAt: now } : i))
     );
+    setAlerts((prev) =>
+      prev.map((a) =>
+        a.interestId === interestId && !a.readAt ? { ...a, readAt: now } : a
+      )
+    );
   }, []);
 
   const getNewAlertCount = useCallback(
-    (interestId: string) => {
-      const interest = interests.find((i) => i.id === interestId);
-      const cutoff = interest?.lastViewedAt
-        ? new Date(interest.lastViewedAt).getTime()
-        : 0;
-      return alerts.filter(
-        (a) => a.interestId === interestId && new Date(a.createdAt).getTime() > cutoff
-      ).length;
-    },
-    [interests, alerts]
+    (interestId: string) =>
+      alerts.filter((a) => a.interestId === interestId && !a.readAt).length,
+    [alerts]
   );
 
   // ─── Real-time collection ────────────────────────────────────────────
@@ -778,7 +833,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, [hydrated, autoCollectEnabled, autoCollectIntervalMs, refreshAllInterests, isProcessingInterest]);
 
   const savedAlerts = alerts.filter((a) => a.isSaved);
-  const unreadCount = alerts.filter((a) => !a.feedback).length;
+  const unreadCount = alerts.filter((a) => !a.readAt).length;
 
   // Persist plan + sync to server. Server stores it in the spec JSON of every
   // tracked interest so the poller automatically uses the new cadence on its
@@ -832,7 +887,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         toggleSaveAlert,
         setAlertFeedback,
         hideAlert,
+        restoreHidden,
+        dismissHidden,
+        recentlyHidden,
         updateMatchStatus,
+        markAlertRead,
         markInterestViewed,
         getNewAlertCount,
         savedAlerts,

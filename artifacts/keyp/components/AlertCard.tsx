@@ -26,17 +26,11 @@ interface Props {
 export default function AlertCard({ alert, showInterestTag = true }: Props) {
   const colors = useColors();
   const router = useRouter();
-  const { toggleSaveAlert, setAlertFeedback, hideAlert, interests } = useApp();
+  const { toggleSaveAlert, setAlertFeedback, hideAlert } = useApp();
   const { language, t } = useI18n();
   const sourceConfig = SOURCE_ICONS[alert.source.type];
 
-  const isNew = React.useMemo(() => {
-    const interest = interests.find((i) => i.id === alert.interestId);
-    const cutoff = interest?.lastViewedAt
-      ? new Date(interest.lastViewedAt).getTime()
-      : 0;
-    return new Date(alert.createdAt).getTime() > cutoff;
-  }, [interests, alert.interestId, alert.createdAt]);
+  const isNew = !alert.readAt;
 
   const handlePress = () => {
     router.push({ pathname: '/alert/[id]', params: { id: alert.id } });
