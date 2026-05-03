@@ -1,7 +1,10 @@
 import { Feather } from '@expo/vector-icons';
+import { useSignIn, useSSO, useAuth as useClerkAuth } from '@clerk/expo';
+import * as AuthSession from 'expo-auth-session';
 import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
-import React, { useState } from 'react';
+import * as WebBrowser from 'expo-web-browser';
+import React, { useEffect, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -16,27 +19,44 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useAuth } from '@/context/AuthContext';
 import { useColors } from '@/hooks/useColors';
+
+WebBrowser.maybeCompleteAuthSession();
 
 export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { login } = useAuth();
+  const { signIn, errors, fetchStatus } = useSignIn();
+  const { startSSOFlow } = useSSO();
+  const { isSignedIn } = useClerkAuth();
+
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [emailFocused, setEmailFocused] = useState(false);
   const [passwordFocused, setPasswordFocused] = useState(false);
-  const [rememberMe, setRememberMe] = useState(true);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
 
+  useEffect(() => {
+    if (Platform.OS !== 'android') return;
+    void WebBrowser.warmUpAsync();
+    return () => {
+      void WebBrowser.coolDownAsync();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (isSignedIn) router.replace('/(tabs)');
+  }, [isSignedIn, router]);
+
   const isValidEmail = (e: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(e.trim());
   const emailValid = email.length === 0 || isValidEmail(email);
+  const isLoading = submitting || fetchStatus === 'fetching';
   const canSubmit =
     email.trim().length > 0 && isValidEmail(email) && password.length >= 4 && !isLoading;
 
@@ -49,30 +69,59 @@ export default function LoginScreen() {
       Alert.alert('이메일 형식', '올바른 이메일 주소를 입력해주세요.');
       return;
     }
-    if (password.length < 4) {
-      Alert.alert('비밀번호', '비밀번호는 4자 이상이어야 합니다.');
-      return;
-    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    setIsLoading(true);
+    setSubmitting(true);
     try {
-      await login(email.trim(), password);
-      router.replace('/(tabs)/');
-    } catch {
-      Alert.alert('로그인 실패', '이메일 또는 비밀번호를 확인해주세요.');
+      const { error } = await signIn.password({
+        emailAddress: email.trim(),
+        password,
+      });
+      if (error) {
+        Alert.alert(
+          '로그인 실패',
+          error.message || '이메일 또는 비밀번호를 확인해주세요.',
+        );
+        return;
+      }
+      if (signIn.status === 'complete') {
+        await signIn.finalize({
+          navigate: () => {
+            router.replace('/(tabs)');
+          },
+        });
+      } else {
+        Alert.alert('로그인 실패', '추가 인증 단계가 필요합니다.');
+      }
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? '잠시 후 다시 시도해주세요.';
+      Alert.alert('로그인 실패', msg);
     } finally {
-      setIsLoading(false);
+      setSubmitting(false);
     }
   };
 
-  const handleDemoLogin = async () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    setIsLoading(true);
+  const handleGoogle = async () => {
+    if (googleLoading) return;
+    Haptics.selectionAsync();
+    setGoogleLoading(true);
     try {
-      await login('demo@keyp.app', 'demo1234');
-      router.replace('/(tabs)/');
+      const { createdSessionId, setActive } = await startSSOFlow({
+        strategy: 'oauth_google',
+        redirectUrl: AuthSession.makeRedirectUri({ scheme: 'keyp' }),
+      });
+      if (createdSessionId && setActive) {
+        await setActive({
+          session: createdSessionId,
+          navigate: async () => {
+            router.replace('/(tabs)');
+          },
+        });
+      }
+    } catch (e) {
+      const msg = (e as { message?: string })?.message ?? 'Google 로그인에 실패했습니다.';
+      Alert.alert('Google 로그인 실패', msg);
     } finally {
-      setIsLoading(false);
+      setGoogleLoading(false);
     }
   };
 
@@ -168,20 +217,15 @@ export default function LoginScreen() {
                   올바른 이메일 형식이 아닙니다
                 </Text>
               )}
+              {errors?.fields?.identifier && (
+                <Text style={[styles.errorText, { color: colors.destructive }]}>
+                  {errors.fields.identifier.message}
+                </Text>
+              )}
             </View>
 
             <View style={styles.fieldGroup}>
-              <View style={styles.labelRow}>
-                <Text style={[styles.label, { color: colors.foreground }]}>비밀번호</Text>
-                <TouchableOpacity
-                  hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
-                  onPress={() => Alert.alert('비밀번호 찾기', '데모 앱입니다. demo@keyp.app / demo1234 로 로그인하세요.')}
-                >
-                  <Text style={[styles.forgotText, { color: colors.primary }]}>
-                    비밀번호 찾기
-                  </Text>
-                </TouchableOpacity>
-              </View>
+              <Text style={[styles.label, { color: colors.foreground }]}>비밀번호</Text>
               <View
                 style={[
                   styles.inputWrap,
@@ -225,34 +269,12 @@ export default function LoginScreen() {
                   />
                 </TouchableOpacity>
               </View>
+              {errors?.fields?.password && (
+                <Text style={[styles.errorText, { color: colors.destructive }]}>
+                  {errors.fields.password.message}
+                </Text>
+              )}
             </View>
-
-            <TouchableOpacity
-              style={styles.rememberRow}
-              onPress={() => {
-                Haptics.selectionAsync();
-                setRememberMe(!rememberMe);
-              }}
-              activeOpacity={0.7}
-              accessibilityRole="checkbox"
-              accessibilityLabel="로그인 상태 유지"
-              accessibilityState={{ checked: rememberMe }}
-            >
-              <View
-                style={[
-                  styles.checkbox,
-                  {
-                    backgroundColor: rememberMe ? colors.primary : 'transparent',
-                    borderColor: rememberMe ? colors.primary : colors.border,
-                  },
-                ]}
-              >
-                {rememberMe && <Feather name="check" size={12} color="#fff" />}
-              </View>
-              <Text style={[styles.rememberText, { color: colors.mutedForeground }]}>
-                로그인 상태 유지
-              </Text>
-            </TouchableOpacity>
 
             <TouchableOpacity
               style={[
@@ -285,39 +307,27 @@ export default function LoginScreen() {
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
             </View>
 
-            <View style={styles.socialRow}>
-              <SocialButton
-                icon="🍎"
-                label="Apple"
-                onPress={() => Alert.alert('준비 중', 'Apple 로그인은 곧 지원됩니다.')}
-                colors={colors}
-              />
-              <SocialButton
-                icon="G"
-                label="Google"
-                onPress={() => Alert.alert('준비 중', 'Google 로그인은 곧 지원됩니다.')}
-                colors={colors}
-              />
-              <SocialButton
-                icon="K"
-                label="Kakao"
-                onPress={() => Alert.alert('준비 중', 'Kakao 로그인은 곧 지원됩니다.')}
-                colors={colors}
-                bg="#FEE500"
-                fg="#000"
-              />
-            </View>
-
             <TouchableOpacity
-              style={[styles.demoBtn, { borderColor: colors.primary + '40', backgroundColor: colors.primary + '10' }]}
-              onPress={handleDemoLogin}
-              disabled={isLoading}
+              style={[
+                styles.googleBtn,
+                { backgroundColor: colors.card, borderColor: colors.border },
+              ]}
+              onPress={handleGoogle}
+              disabled={googleLoading || isLoading}
               activeOpacity={0.85}
+              accessibilityRole="button"
+              accessibilityLabel="Google로 로그인"
             >
-              <Feather name="play-circle" size={16} color={colors.primary} />
-              <Text style={[styles.demoBtnText, { color: colors.primary }]}>
-                데모 계정으로 빠르게 체험
-              </Text>
+              {googleLoading ? (
+                <ActivityIndicator color={colors.foreground} />
+              ) : (
+                <>
+                  <Text style={[styles.googleIcon, { color: colors.foreground }]}>G</Text>
+                  <Text style={[styles.googleLabel, { color: colors.foreground }]}>
+                    Google로 계속하기
+                  </Text>
+                </>
+              )}
             </TouchableOpacity>
           </View>
 
@@ -335,49 +345,9 @@ export default function LoginScreen() {
   );
 }
 
-function SocialButton({
-  icon,
-  label,
-  onPress,
-  colors,
-  bg,
-  fg,
-}: {
-  icon: string;
-  label: string;
-  onPress: () => void;
-  colors: ReturnType<typeof useColors>;
-  bg?: string;
-  fg?: string;
-}) {
-  return (
-    <TouchableOpacity
-      style={[
-        styles.socialBtn,
-        {
-          backgroundColor: bg ?? colors.card,
-          borderColor: bg ? bg : colors.border,
-        },
-      ]}
-      onPress={() => {
-        Haptics.selectionAsync();
-        onPress();
-      }}
-      activeOpacity={0.85}
-    >
-      <Text style={[styles.socialIcon, { color: fg ?? colors.foreground }]}>{icon}</Text>
-      <Text style={[styles.socialLabel, { color: fg ?? colors.foreground }]}>{label}</Text>
-    </TouchableOpacity>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  scroll: {
-    paddingHorizontal: 24,
-    gap: 28,
-    minHeight: '100%',
-  },
+  scroll: { paddingHorizontal: 24, gap: 28, minHeight: '100%' },
   backBtn: {
     width: 40,
     height: 40,
@@ -386,42 +356,13 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderWidth: 1,
   },
-  header: {
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoMark: {
-    width: 72,
-    height: 72,
-    marginBottom: 8,
-  },
-  title: {
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
-  },
-  subtitle: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-  },
-  form: {
-    gap: 16,
-  },
-  fieldGroup: {
-    gap: 8,
-  },
-  labelRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  label: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  forgotText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-  },
+  header: { alignItems: 'center', gap: 10 },
+  logoMark: { width: 72, height: 72, marginBottom: 8 },
+  title: { fontSize: 26, fontFamily: 'Inter_700Bold' },
+  subtitle: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  form: { gap: 16 },
+  fieldGroup: { gap: 8 },
+  label: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
   inputWrap: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -430,35 +371,8 @@ const styles = StyleSheet.create({
     paddingVertical: 14,
     borderRadius: 14,
   },
-  input: {
-    flex: 1,
-    fontSize: 15,
-    fontFamily: 'Inter_400Regular',
-    paddingVertical: 0,
-  },
-  errorText: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    marginLeft: 4,
-  },
-  rememberRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginTop: -4,
-  },
-  checkbox: {
-    width: 18,
-    height: 18,
-    borderRadius: 5,
-    borderWidth: 1.5,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  rememberText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-  },
+  input: { flex: 1, fontSize: 15, fontFamily: 'Inter_400Regular', paddingVertical: 0 },
+  errorText: { fontSize: 12, fontFamily: 'Inter_400Regular', marginLeft: 4 },
   loginBtn: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -468,60 +382,21 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginTop: 4,
   },
-  loginBtnText: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-  },
-  dividerRow: {
+  loginBtnText: { fontSize: 16, fontFamily: 'Inter_700Bold', color: '#fff' },
+  dividerRow: { flexDirection: 'row', alignItems: 'center', gap: 12, marginVertical: 4 },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  googleBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
-    marginVertical: 4,
-  },
-  dividerLine: {
-    flex: 1,
-    height: 1,
-  },
-  dividerText: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  socialRow: {
-    flexDirection: 'row',
+    justifyContent: 'center',
     gap: 10,
-  },
-  socialBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 13,
-    borderRadius: 14,
-    borderWidth: 1,
-  },
-  socialIcon: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-  },
-  socialLabel: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  demoBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 8,
     paddingVertical: 14,
     borderRadius: 14,
     borderWidth: 1,
   },
-  demoBtnText: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  googleIcon: { fontSize: 18, fontFamily: 'Inter_700Bold' },
+  googleLabel: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
   bottomSwitch: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -529,12 +404,6 @@ const styles = StyleSheet.create({
     gap: 6,
     marginTop: 'auto',
   },
-  switchText: {
-    fontSize: 14,
-    fontFamily: 'Inter_400Regular',
-  },
-  switchLink: {
-    fontSize: 14,
-    fontFamily: 'Inter_700Bold',
-  },
+  switchText: { fontSize: 14, fontFamily: 'Inter_400Regular' },
+  switchLink: { fontSize: 14, fontFamily: 'Inter_700Bold' },
 });

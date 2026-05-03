@@ -547,6 +547,13 @@ export const STRINGS: Record<string, Record<Language, string>> = {
     ko: '플랜 변경에 실패했어요. 잠시 후 다시 시도해 주세요.',
     en: 'Could not change plan. Please try again in a moment.',
   },
+  'pricing.comingSoon.title': { ko: '출시 예정', en: 'Coming soon' },
+  'pricing.comingSoon.body': {
+    ko: '유료 플랜은 곧 만나보실 수 있어요. 지금은 Free 플랜을 이용해 주세요.',
+    en: 'Paid plans are launching soon. Please use the Free plan for now.',
+  },
+  'pricing.comingSoon.badge': { ko: '출시 예정', en: 'Coming soon' },
+  'pricing.comingSoon.btn': { ko: '출시 예정', en: 'Coming soon' },
   'pricing.note': {
     ko: '언제든지 플랜을 변경하거나 취소할 수 있어요. 같은 관심사를 검색하는 다른 사용자와 결과가 자동으로 공유되어 비용이 절감됩니다.',
     en: 'You can change or cancel anytime. Results are automatically shared across users searching the same interest, reducing cost.',

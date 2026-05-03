@@ -103,6 +103,11 @@ export default function PricingScreen() {
 
   const handleSelect = async (next: PlanTier) => {
     if (submittingId) return;
+    if (next !== 'free') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+      Alert.alert(t('pricing.comingSoon.title'), t('pricing.comingSoon.body'));
+      return;
+    }
     if (next === currentPlan && annual === annualBilling) {
       Alert.alert(t('pricing.alreadyOnPlan.title'), t('pricing.alreadyOnPlan.body'));
       return;
@@ -185,7 +190,12 @@ export default function PricingScreen() {
             const isCurrent = p.id === currentPlan;
             const isSubmitting = submittingId === p.id;
             const isHighlight = p.highlight;
-            const borderColor = isHighlight ? colors.primary : colors.border;
+            const isComingSoon = p.id !== 'free';
+            const borderColor = isComingSoon
+              ? colors.border
+              : isHighlight
+              ? colors.primary
+              : colors.border;
             return (
               <View
                 key={p.id}
@@ -194,7 +204,8 @@ export default function PricingScreen() {
                   {
                     backgroundColor: colors.card,
                     borderColor,
-                    borderWidth: isHighlight ? 2 : 1,
+                    borderWidth: isHighlight && !isComingSoon ? 2 : 1,
+                    opacity: isComingSoon ? 0.62 : 1,
                   },
                 ]}
               >
@@ -205,16 +216,21 @@ export default function PricingScreen() {
                       {t(p.taglineKey)}
                     </Text>
                   </View>
-                  {isHighlight && (
+                  {isComingSoon ? (
+                    <View style={[styles.badge, { backgroundColor: colors.muted }]}>
+                      <Text style={[styles.badgeText, { color: colors.foreground }]}>
+                        {t('pricing.comingSoon.badge')}
+                      </Text>
+                    </View>
+                  ) : isHighlight ? (
                     <View style={[styles.badge, { backgroundColor: colors.primary }]}>
                       <Text style={styles.badgeText}>BEST</Text>
                     </View>
-                  )}
-                  {isCurrent && !isHighlight && (
+                  ) : isCurrent ? (
                     <View style={[styles.badge, { backgroundColor: colors.success }]}>
                       <Text style={styles.badgeText}>{t('pricing.badge.current')}</Text>
                     </View>
-                  )}
+                  ) : null}
                 </View>
 
                 <View style={styles.priceRow}>
@@ -248,7 +264,9 @@ export default function PricingScreen() {
                   style={[
                     styles.selectBtn,
                     {
-                      backgroundColor: isCurrent
+                      backgroundColor: isComingSoon
+                        ? colors.muted
+                        : isCurrent
                         ? colors.secondary
                         : isHighlight
                         ? colors.primary
@@ -256,10 +274,11 @@ export default function PricingScreen() {
                     },
                   ]}
                   onPress={() => handleSelect(p.id)}
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || isComingSoon}
                   activeOpacity={0.85}
                   accessibilityRole="button"
                   accessibilityLabel={t('pricing.btn.a11y', { name: p.name })}
+                  accessibilityState={{ disabled: isComingSoon }}
                 >
                   {isSubmitting ? (
                     <ActivityIndicator color={isCurrent ? colors.foreground : '#fff'} />
@@ -268,7 +287,9 @@ export default function PricingScreen() {
                       style={[
                         styles.selectText,
                         {
-                          color: isCurrent
+                          color: isComingSoon
+                            ? colors.mutedForeground
+                            : isCurrent
                             ? colors.foreground
                             : isHighlight
                             ? '#fff'
@@ -276,7 +297,11 @@ export default function PricingScreen() {
                         },
                       ]}
                     >
-                      {isCurrent ? t('pricing.btn.current') : t('pricing.btn.choose')}
+                      {isComingSoon
+                        ? t('pricing.comingSoon.btn')
+                        : isCurrent
+                        ? t('pricing.btn.current')
+                        : t('pricing.btn.choose')}
                     </Text>
                   )}
                 </TouchableOpacity>
