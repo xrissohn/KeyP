@@ -3,6 +3,7 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Image,
   Platform,
   StyleSheet,
   Text,
@@ -79,9 +80,12 @@ export default function Onboarding() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topInset + 12 }]}>
         <View style={styles.logoRow}>
-          <View style={[styles.logoMark, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoText}>K</Text>
-          </View>
+          <Image
+            source={require('@/assets/images/keyp-logo.png')}
+            style={styles.logoMark}
+            resizeMode="contain"
+            accessibilityLabel="KeyP 로고"
+          />
           <Text style={[styles.logoLabel, { color: colors.foreground }]}>KeyP</Text>
         </View>
         <TouchableOpacity

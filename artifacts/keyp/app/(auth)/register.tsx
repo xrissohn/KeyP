@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   Platform,
   ScrollView,
   StyleSheet,
@@ -61,9 +62,12 @@ export default function RegisterScreen() {
         keyboardShouldPersistTaps="handled"
       >
         <View style={styles.header}>
-          <View style={[styles.logoMark, { backgroundColor: colors.primary }]}>
-            <Text style={styles.logoText}>K</Text>
-          </View>
+          <Image
+            source={require('@/assets/images/keyp-logo.png')}
+            style={styles.logoMark}
+            resizeMode="contain"
+            accessibilityLabel="KeyP 로고"
+          />
           <Text style={[styles.title, { color: colors.foreground }]}>KeyP 시작하기</Text>
           <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
             관심사를 등록하고 먼저 알림받으세요
@@ -154,17 +158,9 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   logoMark: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 72,
+    height: 72,
     marginBottom: 8,
-  },
-  logoText: {
-    fontSize: 36,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
   },
   title: {
     fontSize: 28,

@@ -5,6 +5,7 @@ import React, { useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  Image,
   KeyboardAvoidingView,
   Platform,
   ScrollView,
@@ -110,9 +111,12 @@ export default function LoginScreen() {
           </TouchableOpacity>
 
           <View style={styles.header}>
-            <View style={[styles.logoMark, { backgroundColor: colors.primary }]}>
-              <Text style={styles.logoText}>K</Text>
-            </View>
+            <Image
+              source={require('@/assets/images/keyp-logo.png')}
+              style={styles.logoMark}
+              resizeMode="contain"
+              accessibilityLabel="KeyP 로고"
+            />
             <Text style={[styles.title, { color: colors.foreground }]}>다시 만나서 반가워요</Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
               KeyP 계정으로 로그인하세요
@@ -387,17 +391,9 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   logoMark: {
-    width: 64,
-    height: 64,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    width: 72,
+    height: 72,
     marginBottom: 8,
-  },
-  logoText: {
-    fontSize: 36,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
   },
   title: {
     fontSize: 26,
