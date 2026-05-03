@@ -58,15 +58,22 @@ router.post("/push/track-interest", async (req, res) => {
     return;
   }
   const { interestId, deviceId, spec, rawText } = parsed.data;
+  // Pluck userLanguage off raw body (kept off the zod schema to avoid
+  // codegen ripple). Whitelist to 'ko'/'en'; default 'ko' for legacy clients.
+  const rawLang = (req.body as { userLanguage?: unknown } | undefined)?.userLanguage;
+  const userLanguage: "ko" | "en" = rawLang === "en" ? "en" : "ko";
   // Plan propagation: a newly tracked interest inherits the plan of the
   // device's other interests so cadence/quota stay consistent (otherwise the
   // poller defaults to "basic" and a Pro user's new topic would silently
   // poll slower than their existing ones until the next /push/set-plan).
-  let mergedSpec: typeof spec & { plan?: PlanTier } = spec;
+  let mergedSpec: typeof spec & { plan?: PlanTier; userLanguage?: "ko" | "en" } = {
+    ...spec,
+    userLanguage,
+  };
   if (!(spec as { plan?: PlanTier }).plan) {
     const inheritedPlan = await getPlanForDevice(deviceId);
     if (VALID_PLANS.includes(inheritedPlan)) {
-      mergedSpec = { ...spec, plan: inheritedPlan };
+      mergedSpec = { ...mergedSpec, plan: inheritedPlan };
     }
   }
   await db

@@ -14,7 +14,7 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
 import EmptyState from '@/components/EmptyState';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { Interest } from '@/types';
 
@@ -23,6 +23,7 @@ export default function FeedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { alerts, interests } = useApp();
+  const { t } = useI18n();
   const [selectedInterest, setSelectedInterest] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const listRef = React.useRef<FlatList>(null);
@@ -53,7 +54,7 @@ export default function FeedScreen() {
           activeOpacity={0.7}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           accessibilityRole="button"
-          accessibilityLabel="홈으로"
+          accessibilityLabel={t('feed.home')}
         >
           <View style={styles.logoRow}>
             <Image
@@ -62,7 +63,7 @@ export default function FeedScreen() {
               resizeMode="contain"
             />
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              실시간 관심사 알림
+              {t('feed.subtitle')}
             </Text>
           </View>
         </TouchableOpacity>
@@ -77,7 +78,7 @@ export default function FeedScreen() {
 
       <FlatList
         horizontal
-        data={[{ id: null, displayName: '전체' } as unknown as Interest, ...interests]}
+        data={[{ id: null, displayName: t('feed.allFilter') } as unknown as Interest, ...interests]}
         keyExtractor={(item) => item.id ?? 'all'}
         showsHorizontalScrollIndicator={false}
         contentContainerStyle={styles.filterList}
@@ -125,9 +126,9 @@ export default function FeedScreen() {
           <View style={styles.emptyWrap}>
             <EmptyState
               icon="bell"
-              title="아직 알림이 없어요"
-              subtitle="관심사를 등록하면 AI가 관련 소식을 먼저 찾아드립니다"
-              actionLabel="관심사 등록"
+              title={t('feed.empty.title')}
+              subtitle={t('feed.empty.subtitle')}
+              actionLabel={t('feed.empty.action')}
               onAction={() => router.push('/interest/add')}
             />
           </View>
@@ -150,62 +151,16 @@ export default function FeedScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1 },
-  topBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 20,
-    paddingBottom: 12,
-  },
-  appName: {
-    fontSize: 26,
-    fontFamily: 'Inter_700Bold',
-  },
-  logoRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 10,
-  },
-  logoImg: {
-    width: 36,
-    height: 36,
-    borderRadius: 9,
-  },
-  subtitle: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    marginTop: 1,
-  },
-  savedBtn: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  filterList: {
-    paddingHorizontal: 20,
-    paddingBottom: 16,
-    gap: 8,
-  },
-  filterChip: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 14,
-    paddingVertical: 8,
-    borderRadius: 20,
-    borderWidth: 1,
-  },
+  topBar: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 20, paddingBottom: 12 },
+  appName: { fontSize: 26, fontFamily: 'Inter_700Bold' },
+  logoRow: { flexDirection: 'row', alignItems: 'center', gap: 10 },
+  logoImg: { width: 36, height: 36, borderRadius: 9 },
+  subtitle: { fontSize: 12, fontFamily: 'Inter_400Regular', marginTop: 1 },
+  savedBtn: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  filterList: { paddingHorizontal: 20, paddingBottom: 16, gap: 8 },
+  filterChip: { flexDirection: 'row', alignItems: 'center', gap: 4, paddingHorizontal: 14, paddingVertical: 8, borderRadius: 20, borderWidth: 1 },
   filterEmoji: { fontSize: 13 },
-  filterText: {
-    fontSize: 13,
-    fontFamily: 'Inter_500Medium',
-  },
-  list: {
-    paddingHorizontal: 20,
-  },
-  emptyWrap: {
-    height: 400,
-  },
+  filterText: { fontSize: 13, fontFamily: 'Inter_500Medium' },
+  list: { paddingHorizontal: 20 },
+  emptyWrap: { height: 400 },
 });

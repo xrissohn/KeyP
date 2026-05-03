@@ -3,27 +3,10 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { relativeTime } from '@/lib/i18n';
 import type { Interest } from '@/types';
-
-const INTENT_LABELS: Record<string, string> = {
-  monitor: '모니터링',
-  alert: '알림',
-  opportunity: '기회탐지',
-  match: '매칭',
-  creator_watch: '크리에이터',
-  travel: '여행',
-  local_signal: '로컬',
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  youtube: 'YT',
-  twitter: 'X',
-  reddit: 'RD',
-  rss: 'RSS',
-  match: '매칭',
-};
 
 interface Props {
   interest: Interest;
@@ -34,6 +17,7 @@ export default function InterestCard({ interest, onDelete }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { getNewAlertCount } = useApp();
+  const { language, t } = useI18n();
   const newCount = getNewAlertCount(interest.id);
 
   const handlePress = () => {
@@ -45,14 +29,8 @@ export default function InterestCard({ interest, onDelete }: Props) {
     onDelete?.(interest.id);
   };
 
-  const formatTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}분 전`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}시간 전`;
-    return `${Math.floor(hrs / 24)}일 전`;
-  };
+  const formatTime = (iso: string) =>
+    relativeTime(Date.now() - new Date(iso).getTime(), language);
 
   return (
     <TouchableOpacity
@@ -83,11 +61,11 @@ export default function InterestCard({ interest, onDelete }: Props) {
           <View style={styles.metaRow}>
             <View style={[styles.intentBadge, { backgroundColor: interest.color + '20' }]}>
               <Text style={[styles.intentText, { color: interest.color }]}>
-                {INTENT_LABELS[interest.spec.intentType] ?? interest.spec.intentType}
+                {t(`intent.${interest.spec.intentType}`)}
               </Text>
             </View>
             <Text style={[styles.meta, { color: colors.mutedForeground }]}>
-              {interest.spec.urgency === 'high' ? '긴급' : interest.spec.urgency === 'medium' ? '보통' : '낮음'}
+              {t(`urgency.${interest.spec.urgency}`)}
             </Text>
           </View>
         </View>
@@ -108,7 +86,7 @@ export default function InterestCard({ interest, onDelete }: Props) {
               style={[styles.sourceBadge, { backgroundColor: colors.secondary }]}
             >
               <Text style={[styles.sourceText, { color: colors.mutedForeground }]}>
-                {SOURCE_LABELS[src] ?? src}
+                {t(`sourceShort.${src}`)}
               </Text>
             </View>
           ))}
@@ -134,104 +112,25 @@ export default function InterestCard({ interest, onDelete }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 10,
-    gap: 12,
-  },
-  topRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-  },
-  emojiWrap: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  emoji: {
-    fontSize: 22,
-  },
-  info: {
-    flex: 1,
-    gap: 4,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  name: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  newBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 2,
-    borderRadius: 8,
-    minWidth: 22,
-    alignItems: 'center',
-  },
-  newBadgeText: {
-    fontSize: 10,
-    fontFamily: 'Inter_700Bold',
-    color: '#fff',
-    letterSpacing: 0.3,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  intentBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 2,
-    borderRadius: 8,
-  },
-  intentText: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  meta: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-  },
-  deleteBtn: {
-    padding: 4,
-  },
-  bottomRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-  },
-  sources: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  sourceBadge: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  sourceText: {
-    fontSize: 10,
-    fontFamily: 'Inter_500Medium',
-  },
-  alertInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  alertCount: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  lastAlert: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-  },
+  card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 10, gap: 12 },
+  topRow: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  emojiWrap: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  emoji: { fontSize: 22 },
+  info: { flex: 1, gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  name: { fontSize: 15, fontFamily: 'Inter_600SemiBold' },
+  newBadge: { paddingHorizontal: 7, paddingVertical: 2, borderRadius: 8, minWidth: 22, alignItems: 'center' },
+  newBadgeText: { fontSize: 10, fontFamily: 'Inter_700Bold', color: '#fff', letterSpacing: 0.3 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  intentBadge: { paddingHorizontal: 8, paddingVertical: 2, borderRadius: 8 },
+  intentText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  meta: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  deleteBtn: { padding: 4 },
+  bottomRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sources: { flexDirection: 'row', gap: 4 },
+  sourceBadge: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  sourceText: { fontSize: 10, fontFamily: 'Inter_500Medium' },
+  alertInfo: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  alertCount: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  lastAlert: { fontSize: 11, fontFamily: 'Inter_400Regular' },
 });

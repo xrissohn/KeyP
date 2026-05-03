@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import ConfidenceBadge from '@/components/ConfidenceBadge';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { buildSafeOpenUrl } from '@/lib/agents/ApiClient';
 import type { SourceType } from '@/types';
@@ -32,6 +32,7 @@ export default function AlertDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { alerts, toggleSaveAlert, setAlertFeedback, hideAlert } = useApp();
+  const { t } = useI18n();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -42,7 +43,7 @@ export default function AlertDetailScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.notFound, { color: colors.mutedForeground }]}>
-          알림을 찾을 수 없습니다
+          {t('alert.notFound')}
         </Text>
       </View>
     );
@@ -107,21 +108,21 @@ export default function AlertDetailScreen() {
         </View>
 
         <View style={[styles.summaryCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
-          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>요약</Text>
+          <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>{t('alert.summary')}</Text>
           <Text style={[styles.summary, { color: colors.foreground }]}>{alert.summary}</Text>
         </View>
 
         <View style={[styles.reasonCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
           <Feather name="info" size={14} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.sectionLabel, { color: colors.primary }]}>왜 이 알림이 왔나요?</Text>
+            <Text style={[styles.sectionLabel, { color: colors.primary }]}>{t('alert.why')}</Text>
             <Text style={[styles.reason, { color: colors.foreground }]}>{alert.reason}</Text>
           </View>
         </View>
 
         {alert.tags.length > 0 && (
           <View style={styles.tagsSection}>
-            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>관련 태그</Text>
+            <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>{t('alert.relatedTags')}</Text>
             <View style={styles.tags}>
               {alert.tags.map((tag) => (
                 <View key={tag} style={[styles.tag, { backgroundColor: colors.secondary }]}>
@@ -148,7 +149,7 @@ export default function AlertDetailScreen() {
               <Feather name="external-link" size={16} color={sourceColor} />
             </View>
             <Text style={[styles.sourceLinkText, { color: colors.foreground }]}>
-              원문 보기 — {alert.source.name}
+              {t('alert.openOriginal', { name: alert.source.name })}
             </Text>
             <Feather name="chevron-right" size={16} color={colors.mutedForeground} />
           </TouchableOpacity>
@@ -156,14 +157,14 @@ export default function AlertDetailScreen() {
 
         <View style={[styles.feedbackSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionLabel, { color: colors.mutedForeground }]}>
-            이 알림이 도움이 됐나요?
+            {t('alert.feedback.helpful')}
           </Text>
           <View style={styles.feedbackBtns}>
             {([
-              { type: 'like' as const, icon: 'thumbs-up' as const, label: '좋아요', color: colors.success },
-              { type: 'dislike' as const, icon: 'thumbs-down' as const, label: '별로예요', color: colors.destructive },
-              { type: 'more' as const, icon: 'plus-circle' as const, label: '더 보기', color: colors.primary },
-              { type: 'hide' as const, icon: 'eye-off' as const, label: '숨기기', color: colors.mutedForeground },
+              { type: 'like' as const, icon: 'thumbs-up' as const, label: t('alert.feedback.like'), color: colors.success },
+              { type: 'dislike' as const, icon: 'thumbs-down' as const, label: t('alert.feedback.dislike'), color: colors.destructive },
+              { type: 'more' as const, icon: 'plus-circle' as const, label: t('alert.feedback.more'), color: colors.primary },
+              { type: 'hide' as const, icon: 'eye-off' as const, label: t('alert.feedback.hide'), color: colors.mutedForeground },
             ] as const).map(({ type, icon, label, color }) => (
               <TouchableOpacity
                 key={type}

@@ -6,27 +6,28 @@ import { SymbolView } from 'expo-symbols';
 import { Feather } from '@expo/vector-icons';
 import React from 'react';
 import { Platform, StyleSheet, View, useColorScheme } from 'react-native';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 function NativeTabLayout() {
+  const { t } = useI18n();
   return (
     <NativeTabs>
       <NativeTabs.Trigger name="index">
         <Icon sf={{ default: 'bell', selected: 'bell.fill' }} />
-        <Label>피드</Label>
+        <Label>{t('tabs.feed')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="interests">
         <Icon sf={{ default: 'star', selected: 'star.fill' }} />
-        <Label>관심사</Label>
+        <Label>{t('tabs.interests')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="match">
         <Icon sf={{ default: 'person.2', selected: 'person.2.fill' }} />
-        <Label>매칭</Label>
+        <Label>{t('tabs.match')}</Label>
       </NativeTabs.Trigger>
       <NativeTabs.Trigger name="profile">
         <Icon sf={{ default: 'person', selected: 'person.fill' }} />
-        <Label>프로필</Label>
+        <Label>{t('tabs.profile')}</Label>
       </NativeTabs.Trigger>
     </NativeTabs>
   );
@@ -39,6 +40,7 @@ function ClassicTabLayout() {
   const isIOS = Platform.OS === 'ios';
   const isWeb = Platform.OS === 'web';
   const { unreadCount, matches } = useApp();
+  const { t } = useI18n();
 
   const pendingMatches = matches.filter((m) => m.status === 'pending').length;
 
@@ -71,7 +73,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="index"
         options={{
-          title: '피드',
+          title: t('tabs.feed'),
           tabBarBadge: unreadCount > 0 ? unreadCount : undefined,
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -84,7 +86,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="interests"
         options={{
-          title: '관심사',
+          title: t('tabs.interests'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="star" tintColor={color} size={22} />
@@ -96,7 +98,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="match"
         options={{
-          title: '매칭',
+          title: t('tabs.match'),
           tabBarBadge: pendingMatches > 0 ? pendingMatches : undefined,
           tabBarIcon: ({ color }) =>
             isIOS ? (
@@ -109,7 +111,7 @@ function ClassicTabLayout() {
       <Tabs.Screen
         name="profile"
         options={{
-          title: '프로필',
+          title: t('tabs.profile'),
           tabBarIcon: ({ color }) =>
             isIOS ? (
               <SymbolView name="person" tintColor={color} size={22} />

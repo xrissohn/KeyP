@@ -4,9 +4,10 @@ import { useRouter } from 'expo-router';
 import React from 'react';
 import { Linking, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import ConfidenceBadge from '@/components/ConfidenceBadge';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import { buildSafeOpenUrl } from '@/lib/agents/ApiClient';
+import { relativeTime } from '@/lib/i18n';
 import type { Alert, SourceType } from '@/types';
 
 const SOURCE_ICONS: Record<SourceType, { name: keyof typeof Feather.glyphMap; color: string }> = {
@@ -26,6 +27,7 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
   const colors = useColors();
   const router = useRouter();
   const { toggleSaveAlert, setAlertFeedback, hideAlert } = useApp();
+  const { language, t } = useI18n();
   const sourceConfig = SOURCE_ICONS[alert.source.type];
 
   const handlePress = () => {
@@ -53,28 +55,17 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
   };
 
   const sourceUrl = alert.source.url ?? alert.originalUrl;
-  // Always route taps through the server's /api/redirect proxy so dead links
-  // (legacy AsyncStorage data, soft-404 SPAs, links that died after caching)
-  // fall back to a Google search instead of "page not found".
   const handleOpenSource = (e: { stopPropagation?: () => void }) => {
     e.stopPropagation?.();
     const fallbackQuery = `${alert.interestName} ${alert.title}`;
     const target = buildSafeOpenUrl(sourceUrl, fallbackQuery);
     if (!target) return;
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    Linking.openURL(target).catch(() => {
-      // Silent fail — user-facing error would be too noisy here.
-    });
+    Linking.openURL(target).catch(() => {});
   };
 
-  const formatTime = (iso: string) => {
-    const diff = Date.now() - new Date(iso).getTime();
-    const mins = Math.floor(diff / 60000);
-    if (mins < 60) return `${mins}분 전`;
-    const hrs = Math.floor(mins / 60);
-    if (hrs < 24) return `${hrs}시간 전`;
-    return `${Math.floor(hrs / 24)}일 전`;
-  };
+  const formatTime = (iso: string) =>
+    relativeTime(Date.now() - new Date(iso).getTime(), language);
 
   return (
     <TouchableOpacity
@@ -146,7 +137,7 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
             style={[styles.sourceLinkText, { color: colors.primary }]}
             numberOfLines={1}
           >
-            출처 보기 · {alert.source.name}
+            {t('alert.openSource', { name: alert.source.name })}
           </Text>
           <Feather name="arrow-up-right" size={13} color={colors.primary} />
         </TouchableOpacity>
@@ -205,102 +196,23 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  headerLeft: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-  },
-  sourceIcon: {
-    width: 20,
-    height: 20,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  sourceName: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  dot: {
-    fontSize: 12,
-  },
-  interestTag: {
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  time: {
-    fontSize: 11,
-    fontFamily: 'Inter_400Regular',
-  },
-  title: {
-    fontSize: 15,
-    fontFamily: 'Inter_600SemiBold',
-    lineHeight: 22,
-    marginBottom: 6,
-  },
-  summary: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 19,
-    marginBottom: 12,
-  },
-  metaRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
+  card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12 },
+  header: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  headerLeft: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: 6 },
+  sourceIcon: { width: 20, height: 20, borderRadius: 10, alignItems: 'center', justifyContent: 'center' },
+  sourceName: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  dot: { fontSize: 12 },
+  interestTag: { fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  time: { fontSize: 11, fontFamily: 'Inter_400Regular' },
+  title: { fontSize: 15, fontFamily: 'Inter_600SemiBold', lineHeight: 22, marginBottom: 6 },
+  summary: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19, marginBottom: 12 },
+  metaRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   spacer: { flex: 1 },
-  tags: {
-    flexDirection: 'row',
-    gap: 4,
-  },
-  tag: {
-    paddingHorizontal: 7,
-    paddingVertical: 3,
-    borderRadius: 6,
-  },
-  tagText: {
-    fontSize: 10,
-    fontFamily: 'Inter_500Medium',
-  },
-  sourceLink: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    borderRadius: 10,
-    borderWidth: 1,
-    marginBottom: 12,
-  },
-  sourceLinkText: {
-    flex: 1,
-    fontSize: 12,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  actions: {
-    flexDirection: 'row',
-    borderTopWidth: 1,
-    paddingTop: 10,
-    gap: 4,
-  },
-  actionBtn: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 6,
-    borderRadius: 8,
-  },
+  tags: { flexDirection: 'row', gap: 4 },
+  tag: { paddingHorizontal: 7, paddingVertical: 3, borderRadius: 6 },
+  tagText: { fontSize: 10, fontFamily: 'Inter_500Medium' },
+  sourceLink: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingHorizontal: 12, paddingVertical: 10, borderRadius: 10, borderWidth: 1, marginBottom: 12 },
+  sourceLinkText: { flex: 1, fontSize: 12, fontFamily: 'Inter_600SemiBold' },
+  actions: { flexDirection: 'row', borderTopWidth: 1, paddingTop: 10, gap: 4 },
+  actionBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 8 },
 });

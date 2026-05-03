@@ -348,6 +348,18 @@ export const GenerateAlertsResponse = zod.object({
         .describe(
           "Minutes since the event\/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency.",
         ),
+      originalLanguage: zod
+        .string()
+        .optional()
+        .describe(
+          "BCP-47-ish short language code of the source (ko, en, ja, zh, es, fr, de, other).",
+        ),
+      translated: zod
+        .boolean()
+        .optional()
+        .describe(
+          "Whether the title\/summary were translated from originalLanguage into the requested userLanguage.",
+        ),
     }),
   ),
   steps: zod.array(

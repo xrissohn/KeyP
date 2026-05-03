@@ -14,18 +14,18 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp, type PlanTier } from '@/context/AppContext';
+import { useApp, useI18n, type PlanTier } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 interface PlanDef {
   id: PlanTier;
   name: string;
   monthly: number;
-  tagline: string;
-  pollLabel: string;
-  interestCap: string;
-  boostLabel: string;
-  perks: string[];
+  taglineKey: string;
+  pollKey: string;
+  capKey: string;
+  boostKey: string;
+  perkKeys: string[];
   highlight?: boolean;
 }
 
@@ -34,42 +34,42 @@ const PLANS: PlanDef[] = [
     id: 'free',
     name: 'Free',
     monthly: 0,
-    tagline: '체험용',
-    pollLabel: '1시간 주기',
-    interestCap: '관심사 1개',
-    boostLabel: '속보 알림 없음',
-    perks: ['기본 알림', '저장 5건', '광고 노출'],
+    taglineKey: 'pricing.tagline.free',
+    pollKey: 'pricing.poll.free',
+    capKey: 'pricing.cap.free',
+    boostKey: 'pricing.boost.free',
+    perkKeys: ['pricing.perks.basicAlert', 'pricing.perks.savedFew', 'pricing.perks.adsShown'],
   },
   {
     id: 'basic',
     name: 'Basic',
     monthly: 4900,
-    tagline: '입문',
-    pollLabel: '15분 주기',
-    interestCap: '관심사 5개',
-    boostLabel: '속보 알림 없음',
-    perks: ['기본 알림', '저장 무제한', '광고 제거'],
+    taglineKey: 'pricing.tagline.basic',
+    pollKey: 'pricing.poll.basic',
+    capKey: 'pricing.cap.basic',
+    boostKey: 'pricing.boost.basic',
+    perkKeys: ['pricing.perks.basicAlert', 'pricing.perks.savedUnlimited', 'pricing.perks.adsRemoved'],
   },
   {
     id: 'pro',
     name: 'Pro',
     monthly: 12900,
-    tagline: '추천',
-    pollLabel: '10분 주기',
-    interestCap: '관심사 15개',
-    boostLabel: '속보 알림 월 5회',
-    perks: ['우선순위 큐', '카테고리 가중치', '주간 리포트'],
+    taglineKey: 'pricing.tagline.pro',
+    pollKey: 'pricing.poll.pro',
+    capKey: 'pricing.cap.pro',
+    boostKey: 'pricing.boost.pro',
+    perkKeys: ['pricing.perks.priorityQueue', 'pricing.perks.categoryWeights', 'pricing.perks.weeklyReport'],
     highlight: true,
   },
   {
     id: 'power',
     name: 'Power',
     monthly: 29900,
-    tagline: '파워유저',
-    pollLabel: '5분 주기',
-    interestCap: '관심사 30개',
-    boostLabel: '속보 알림 월 30회',
-    perks: ['최우선 처리', '실험 기능 우선 액세스', 'API 호출 30%'],
+    taglineKey: 'pricing.tagline.power',
+    pollKey: 'pricing.poll.power',
+    capKey: 'pricing.cap.power',
+    boostKey: 'pricing.boost.power',
+    perkKeys: ['pricing.perks.topPriority', 'pricing.perks.experimental', 'pricing.perks.apiBoost'],
   },
 ];
 
@@ -82,6 +82,7 @@ export default function PricingScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { plan: currentPlan, annualBilling, setPlan } = useApp();
+  const { t } = useI18n();
   const [annual, setAnnual] = useState(annualBilling);
   const [submittingId, setSubmittingId] = useState<PlanTier | null>(null);
 
@@ -103,7 +104,7 @@ export default function PricingScreen() {
   const handleSelect = async (next: PlanTier) => {
     if (submittingId) return;
     if (next === currentPlan && annual === annualBilling) {
-      Alert.alert('이미 사용 중인 플랜이에요', '다른 플랜을 골라보세요.');
+      Alert.alert(t('pricing.alreadyOnPlan.title'), t('pricing.alreadyOnPlan.body'));
       return;
     }
     setSubmittingId(next);
@@ -111,10 +112,10 @@ export default function PricingScreen() {
     try {
       await setPlan(next, annual);
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
-      Alert.alert('플랜이 변경됐어요', `${next.toUpperCase()} 플랜으로 적용됩니다.`);
+      Alert.alert(t('pricing.changed.title'), t('pricing.changed.body', { plan: next.toUpperCase() }));
     } catch {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error).catch(() => {});
-      Alert.alert('오류', '플랜 변경에 실패했어요. 잠시 후 다시 시도해 주세요.');
+      Alert.alert(t('common.error'), t('pricing.error.body'));
     } finally {
       setSubmittingId(null);
     }
@@ -135,23 +136,23 @@ export default function PricingScreen() {
             hitSlop={{ top: 16, bottom: 16, left: 16, right: 16 }}
             style={[styles.backBtn, { backgroundColor: colors.card, borderColor: colors.border }]}
             accessibilityRole="button"
-            accessibilityLabel="뒤로"
+            accessibilityLabel={t('common.back')}
           >
             <Feather name="arrow-left" size={20} color={colors.foreground} />
           </TouchableOpacity>
-          <Text style={[styles.title, { color: colors.foreground }]}>요금제</Text>
+          <Text style={[styles.title, { color: colors.foreground }]}>{t('pricing.title')}</Text>
           <View style={{ width: 36 }} />
         </View>
 
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-          더 빠른 폴링과 속보 알림으로 관심사를 놓치지 마세요.
+          {t('pricing.subtitle')}
         </Text>
 
         {/* 월/연간 토글 */}
         <View style={[styles.cycleToggle, { backgroundColor: colors.card, borderColor: colors.border }]}>
           {[
-            { key: false, label: '월간' },
-            { key: true, label: '연간 -20%' },
+            { key: false, label: t('pricing.monthly') },
+            { key: true, label: t('pricing.annualMinus20') },
           ].map((opt) => {
             const active = annual === opt.key;
             return (
@@ -201,7 +202,7 @@ export default function PricingScreen() {
                   <View>
                     <Text style={[styles.planName, { color: colors.foreground }]}>{p.name}</Text>
                     <Text style={[styles.planTagline, { color: colors.mutedForeground }]}>
-                      {p.tagline}
+                      {t(p.taglineKey)}
                     </Text>
                   </View>
                   {isHighlight && (
@@ -211,35 +212,35 @@ export default function PricingScreen() {
                   )}
                   {isCurrent && !isHighlight && (
                     <View style={[styles.badge, { backgroundColor: colors.success }]}>
-                      <Text style={styles.badgeText}>현재 플랜</Text>
+                      <Text style={styles.badgeText}>{t('pricing.badge.current')}</Text>
                     </View>
                   )}
                 </View>
 
                 <View style={styles.priceRow}>
                   <Text style={[styles.price, { color: colors.foreground }]}>
-                    {p.monthly === 0 ? '무료' : `₩${formatKRW(p.displayMonthly)}`}
+                    {p.monthly === 0 ? t('pricing.free') : `₩${formatKRW(p.displayMonthly)}`}
                   </Text>
                   {p.monthly > 0 && (
                     <Text style={[styles.priceUnit, { color: colors.mutedForeground }]}>
-                      /월
+                      {t('pricing.perMonth')}
                     </Text>
                   )}
                 </View>
                 {annual && p.monthly > 0 && (
                   <Text style={[styles.yearlyHint, { color: colors.mutedForeground }]}>
-                    연 ₩{formatKRW(p.displayYearly)} 일시 결제
+                    {t('pricing.yearlyHint', { amount: formatKRW(p.displayYearly) })}
                   </Text>
                 )}
 
                 <View style={[styles.divider, { backgroundColor: colors.border }]} />
 
                 <View style={styles.featureList}>
-                  <FeatureRow icon="refresh-cw" text={p.pollLabel} colors={colors} />
-                  <FeatureRow icon="star" text={p.interestCap} colors={colors} />
-                  <FeatureRow icon="zap" text={p.boostLabel} colors={colors} />
-                  {p.perks.map((perk) => (
-                    <FeatureRow key={perk} icon="check" text={perk} colors={colors} />
+                  <FeatureRow icon="refresh-cw" text={t(p.pollKey)} colors={colors} />
+                  <FeatureRow icon="star" text={t(p.capKey)} colors={colors} />
+                  <FeatureRow icon="zap" text={t(p.boostKey)} colors={colors} />
+                  {p.perkKeys.map((perkKey) => (
+                    <FeatureRow key={perkKey} icon="check" text={t(perkKey)} colors={colors} />
                   ))}
                 </View>
 
@@ -258,7 +259,7 @@ export default function PricingScreen() {
                   disabled={isSubmitting}
                   activeOpacity={0.85}
                   accessibilityRole="button"
-                  accessibilityLabel={`${p.name} 플랜 선택`}
+                  accessibilityLabel={t('pricing.btn.a11y', { name: p.name })}
                 >
                   {isSubmitting ? (
                     <ActivityIndicator color={isCurrent ? colors.foreground : '#fff'} />
@@ -275,7 +276,7 @@ export default function PricingScreen() {
                         },
                       ]}
                     >
-                      {isCurrent ? '사용 중' : '선택하기'}
+                      {isCurrent ? t('pricing.btn.current') : t('pricing.btn.choose')}
                     </Text>
                   )}
                 </TouchableOpacity>
@@ -287,8 +288,7 @@ export default function PricingScreen() {
         <View style={[styles.note, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Feather name="info" size={14} color={colors.mutedForeground} />
           <Text style={[styles.noteText, { color: colors.mutedForeground }]}>
-            언제든지 플랜을 변경하거나 취소할 수 있어요. 같은 관심사를 검색하는 다른 사용자와
-            결과가 자동으로 공유되어 비용이 절감됩니다.
+            {t('pricing.note')}
           </Text>
         </View>
       </ScrollView>

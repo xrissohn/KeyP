@@ -312,6 +312,12 @@ components:
           type: integer
           minimum: 0
           description: "Minutes since the event/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency."
+        originalLanguage:
+          type: string
+          description: BCP-47-ish short language code of the source (ko, en, ja, zh, es, fr, de, other).
+        translated:
+          type: boolean
+          description: Whether the title/summary were translated from originalLanguage into the requested userLanguage.
     GeneratedAlertsResult:
       type: object
       required: [alerts, steps]

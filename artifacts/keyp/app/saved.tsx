@@ -5,7 +5,7 @@ import { FlatList, Platform, StyleSheet, Text, TouchableOpacity, View } from 're
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
 import EmptyState from '@/components/EmptyState';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
 export default function SavedScreen() {
@@ -13,6 +13,7 @@ export default function SavedScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { savedAlerts, upgradeSavedDummies } = useApp();
+  const { t } = useI18n();
 
   // On mount, force-upgrade any saved alerts still pointing at placeholder
   // URLs (seeded dummies). This kicks the collector for the relevant
@@ -35,8 +36,8 @@ export default function SavedScreen() {
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.title, { color: colors.foreground }]}>저장한 알림</Text>
-        <Text style={[styles.count, { color: colors.mutedForeground }]}>{savedAlerts.length}개</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{t('saved.title')}</Text>
+        <Text style={[styles.count, { color: colors.mutedForeground }]}>{t('common.count', { n: savedAlerts.length })}</Text>
       </View>
 
       <FlatList
@@ -48,8 +49,8 @@ export default function SavedScreen() {
           <View style={styles.emptyWrap}>
             <EmptyState
               icon="bookmark"
-              title="저장한 알림이 없어요"
-              subtitle="알림 카드에서 북마크 버튼을 눌러 저장하세요"
+              title={t('saved.empty.title')}
+              subtitle={t('saved.empty.subtitle')}
             />
           </View>
         }

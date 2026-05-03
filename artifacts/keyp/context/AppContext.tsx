@@ -1,13 +1,16 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import * as Localization from 'expo-localization';
 import React, {
   createContext,
   useCallback,
   useContext,
   useEffect,
+  useMemo,
   useRef,
   useState,
 } from 'react';
 import { MOCK_ALERTS, MOCK_INTERESTS, MOCK_MATCHES } from '@/data/mockData';
+import { detectLanguage, t as translate, type Language } from '@/lib/i18n';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
 import { initNotifications, notifyFreshAlerts } from '@/lib/notifications';
@@ -89,6 +92,11 @@ interface AppContextType {
     quota: number;
     remaining: number;
   }>;
+  // ─── Language ─────────────────────────────────────────
+  /** Current UI language. Hydrated from AsyncStorage on boot, falls back to device locale. */
+  language: Language;
+  /** Update + persist the user's language choice. Also forwarded to the API on subsequent calls. */
+  setLanguage: (lang: Language) => Promise<void>;
 }
 
 export type { PlanTier };
@@ -104,6 +112,7 @@ const STORAGE_KEYS = {
   MATCHES: '@keyp/v2/matches',
   AUTO_COLLECT: '@keyp/v2/autoCollect',
   PLAN: '@keyp/v2/plan',
+  LANGUAGE: '@keyp/v2/language',
 };
 
 // Polling default tightened from 2min → 15min to align with Basic-tier
@@ -152,11 +161,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   );
   const [plan, setPlanState] = useState<PlanTier>('free');
   const [annualBilling, setAnnualBilling] = useState<boolean>(false);
+  const [language, setLanguageState] = useState<Language>(() =>
+    detectLanguage(Localization.getLocales?.()[0]?.languageCode ?? null),
+  );
 
   // Refs needed inside the polling timer so the interval doesn't capture stale state.
   const interestsRef = useRef(interests);
   const alertsRef = useRef(alerts);
   const planRef = useRef<PlanTier>('free');
+  const languageRef = useRef<Language>(language);
   const sweepRunningRef = useRef(false);
   // Synchronous per-interest in-flight lock. We need this *in addition* to the
   // `refreshingInterestIds` React state because state updates are async — two
@@ -173,6 +186,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
     planRef.current = plan;
   }, [plan]);
+  useEffect(() => {
+    languageRef.current = language;
+  }, [language]);
 
   useEffect(() => {
     loadFromStorage();
@@ -239,13 +255,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         '@keyp/matches',
         '@keyp/autoCollect',
       ]).catch(() => {});
-      const [iStr, aStr, mStr, autoStr, planStr] = await Promise.all([
+      const [iStr, aStr, mStr, autoStr, planStr, langStr] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.INTERESTS),
         AsyncStorage.getItem(STORAGE_KEYS.ALERTS),
         AsyncStorage.getItem(STORAGE_KEYS.MATCHES),
         AsyncStorage.getItem(STORAGE_KEYS.AUTO_COLLECT),
         AsyncStorage.getItem(STORAGE_KEYS.PLAN),
+        AsyncStorage.getItem(STORAGE_KEYS.LANGUAGE),
       ]);
+      // Language: stored override wins; otherwise fall back to device locale.
+      // Default 'en' when nothing detected (international-audience first).
+      if (langStr === 'ko' || langStr === 'en') {
+        setLanguageState(langStr);
+      } else {
+        const deviceLocale = Localization.getLocales?.()[0]?.languageCode ?? null;
+        setLanguageState(detectLanguage(deviceLocale));
+      }
       if (planStr) {
         try {
           const parsed = JSON.parse(planStr) as { plan?: PlanTier; annual?: boolean };
@@ -330,7 +355,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           1,
           [],
           seedDeviceId,
-          planRef.current
+          planRef.current,
+          languageRef.current
         );
         onSteps?.([...plannerSteps, ...collectorSteps]);
 
@@ -366,6 +392,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               deviceId,
               spec,
               rawText,
+              userLanguage: languageRef.current,
             });
           } catch (err) {
             console.warn('[KeyP] track-interest failed (will rely on client polling):', err);
@@ -501,7 +528,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           REFRESH_BATCH_SIZE,
           existingSummaries,
           refreshDeviceId,
-          planRef.current
+          planRef.current,
+          languageRef.current
         );
 
         // Client-side dedupe: URL match, normalized-title match, AND a token
@@ -782,6 +810,16 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
     return callBoost({ deviceId, interestId });
   }, []);
 
+  const setLanguage = useCallback(async (next: Language) => {
+    setLanguageState(next);
+    languageRef.current = next;
+    try {
+      await AsyncStorage.setItem(STORAGE_KEYS.LANGUAGE, next);
+    } catch (err) {
+      console.warn('[KeyP] persist language failed', err);
+    }
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -812,6 +850,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         annualBilling,
         setPlan,
         boostInterest,
+        language,
+        setLanguage,
       }}
     >
       {hydrated ? children : null}
@@ -823,4 +863,21 @@ export function useApp() {
   const ctx = useContext(AppContext);
   if (!ctx) throw new Error('useApp must be used within AppProvider');
   return ctx;
+}
+
+/**
+ * Convenience hook that binds the current language to a `t(key, vars?)` call.
+ * Most components should use this instead of importing `t` from `lib/i18n`
+ * directly so language changes propagate without manual re-wiring.
+ */
+export function useI18n() {
+  const { language } = useApp();
+  return useMemo(
+    () => ({
+      language,
+      t: (key: string, vars?: Record<string, string | number>) =>
+        translate(key, language, vars),
+    }),
+    [language],
+  );
 }

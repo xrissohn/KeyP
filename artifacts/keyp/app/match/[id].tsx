@@ -12,16 +12,8 @@ import {
   View,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-
-const MODE_LABELS: Record<string, string> = {
-  friend: '친구찾기',
-  companion: '여행/현지 동행',
-  collaborate: '협업',
-  meal_mate: '밥친구',
-  date: '데이트',
-};
 
 export default function MatchDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -29,6 +21,7 @@ export default function MatchDetailScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { matches, updateMatchStatus } = useApp();
+  const { t } = useI18n();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -39,7 +32,7 @@ export default function MatchDetailScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={[styles.notFound, { color: colors.mutedForeground }]}>
-          매칭을 찾을 수 없습니다
+          {t('match.detail.notFound')}
         </Text>
       </View>
     );
@@ -48,15 +41,18 @@ export default function MatchDetailScreen() {
   const handleAccept = () => {
     Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     updateMatchStatus(match.id, 'accepted');
-    Alert.alert('매칭 수락', `${match.matchedUser.displayName}님과 연결되었습니다! 메시지를 보내보세요.`);
+    Alert.alert(
+      t('match.acceptedAlert.title'),
+      t('match.acceptedAlert.body', { name: match.matchedUser.displayName })
+    );
     router.back();
   };
 
   const handleReject = () => {
-    Alert.alert('매칭 거절', '이 매칭 제안을 거절하시겠어요?', [
-      { text: '취소', style: 'cancel' },
+    Alert.alert(t('match.rejectConfirm.title'), t('match.rejectConfirm.body'), [
+      { text: t('common.cancel'), style: 'cancel' },
       {
-        text: '거절',
+        text: t('match.rejectConfirm.action'),
         style: 'destructive',
         onPress: () => {
           Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
@@ -68,10 +64,10 @@ export default function MatchDetailScreen() {
   };
 
   const handleReport = () => {
-    Alert.alert('신고', '신고 사유를 선택해주세요.', [
-      { text: '스팸', onPress: () => {} },
-      { text: '부적절한 내용', onPress: () => {} },
-      { text: '취소', style: 'cancel' },
+    Alert.alert(t('match.report.title'), t('match.report.body'), [
+      { text: t('match.report.spam'), onPress: () => {} },
+      { text: t('match.report.bad'), onPress: () => {} },
+      { text: t('common.cancel'), style: 'cancel' },
     ]);
   };
 
@@ -88,7 +84,9 @@ export default function MatchDetailScreen() {
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.navTitle, { color: colors.foreground }]}>매칭 상세</Text>
+        <Text style={[styles.navTitle, { color: colors.foreground }]}>
+          {t('match.detail.title')}
+        </Text>
         <TouchableOpacity
           onPress={handleReport}
           hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
@@ -128,20 +126,24 @@ export default function MatchDetailScreen() {
         <View style={[styles.scoreCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <View style={styles.scoreMain}>
             <Text style={[styles.scoreValue, { color: scoreColor }]}>{match.score}</Text>
-            <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>매칭 점수</Text>
+            <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>
+              {t('match.scoreCardLabel')}
+            </Text>
           </View>
           <View style={[styles.scoreDivider, { backgroundColor: colors.border }]} />
           <View style={styles.modeInfo}>
             <Text style={[styles.modeLabelText, { color: colors.primary }]}>
-              {MODE_LABELS[match.mode] ?? match.mode}
+              {t(`match.mode.${match.mode}`)}
             </Text>
-            <Text style={[styles.modeDesc, { color: colors.mutedForeground }]}>매칭 목적</Text>
+            <Text style={[styles.modeDesc, { color: colors.mutedForeground }]}>
+              {t('match.modeLabel')}
+            </Text>
           </View>
         </View>
 
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
-            공통 관심사
+            {t('match.shared')}
           </Text>
           {match.sharedInterests.map((interest) => (
             <View key={interest} style={[styles.interestRow, { borderBottomColor: colors.border }]}>
@@ -154,7 +156,9 @@ export default function MatchDetailScreen() {
         <View style={[styles.reasonCard, { backgroundColor: colors.primary + '10', borderColor: colors.primary + '30' }]}>
           <Feather name="link-2" size={16} color={colors.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[styles.reasonTitle, { color: colors.primary }]}>왜 연결됐나요?</Text>
+            <Text style={[styles.reasonTitle, { color: colors.primary }]}>
+              {t('match.detail.why')}
+            </Text>
             <Text style={[styles.reasonText, { color: colors.foreground }]}>
               {match.explanation}
             </Text>
@@ -164,7 +168,7 @@ export default function MatchDetailScreen() {
         <View style={[styles.safetyCard, { backgroundColor: colors.secondary, borderColor: colors.border }]}>
           <Feather name="shield" size={14} color={colors.mutedForeground} />
           <Text style={[styles.safetyText, { color: colors.mutedForeground }]}>
-            매칭 수락 전에는 정확한 위치와 연락처가 공개되지 않습니다. 모든 연결은 양측 동의 후에만 이루어집니다.
+            {t('match.detail.safety')}
           </Text>
         </View>
       </ScrollView>
@@ -177,7 +181,9 @@ export default function MatchDetailScreen() {
             activeOpacity={0.8}
           >
             <Feather name="x" size={18} color={colors.mutedForeground} />
-            <Text style={[styles.rejectText, { color: colors.mutedForeground }]}>거절</Text>
+            <Text style={[styles.rejectText, { color: colors.mutedForeground }]}>
+              {t('match.reject')}
+            </Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.acceptBtn, { backgroundColor: colors.primary }]}
@@ -185,7 +191,7 @@ export default function MatchDetailScreen() {
             activeOpacity={0.85}
           >
             <Feather name="check" size={18} color="#fff" />
-            <Text style={styles.acceptText}>수락하기</Text>
+            <Text style={styles.acceptText}>{t('match.acceptDetail')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -195,7 +201,7 @@ export default function MatchDetailScreen() {
           <View style={[styles.connectedBadge, { backgroundColor: colors.success + '20' }]}>
             <Feather name="check-circle" size={18} color={colors.success} />
             <Text style={[styles.connectedText, { color: colors.success }]}>
-              연결됨 — 메시지를 시작해보세요
+              {t('match.connectedFooter')}
             </Text>
           </View>
         </View>

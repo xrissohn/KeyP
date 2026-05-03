@@ -15,37 +15,14 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import AlertCard from '@/components/AlertCard';
 import EmptyState from '@/components/EmptyState';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { relativeTime as relTime, t as translate, type Language } from '@/lib/i18n';
 
-function relativeTime(iso: string | null | undefined): string {
-  if (!iso) return '아직';
-  const diffMs = Date.now() - new Date(iso).getTime();
-  const m = Math.floor(diffMs / 60_000);
-  if (m < 1) return '방금';
-  if (m < 60) return `${m}분 전`;
-  const h = Math.floor(m / 60);
-  if (h < 24) return `${h}시간 전`;
-  return `${Math.floor(h / 24)}일 전`;
+function fmtRelative(iso: string | null | undefined, lang: Language): string {
+  if (!iso) return translate('common.none', lang);
+  return relTime(Date.now() - new Date(iso).getTime(), lang);
 }
-
-const INTENT_LABELS: Record<string, string> = {
-  monitor: '모니터링',
-  alert: '알림',
-  opportunity: '기회탐지',
-  match: '매칭',
-  creator_watch: '크리에이터',
-  travel: '여행',
-  local_signal: '로컬',
-};
-
-const SOURCE_LABELS: Record<string, string> = {
-  youtube: 'YouTube',
-  twitter: 'Twitter/X',
-  reddit: 'Reddit',
-  rss: 'RSS/뉴스',
-  match: 'KeyP 매칭',
-};
 
 export default function InterestDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -67,6 +44,7 @@ export default function InterestDetailScreen() {
   const isRefreshing = id ? refreshingInterestIds.includes(id) : false;
   const [isBoosting, setIsBoosting] = useState(false);
   const boostEligible = plan === 'pro' || plan === 'power';
+  const { t, language } = useI18n();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -91,7 +69,7 @@ export default function InterestDetailScreen() {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
         <Text style={{ textAlign: 'center', marginTop: 100, color: colors.mutedForeground }}>
-          관심사를 찾을 수 없습니다
+          {t('interest.detail.notFound')}
         </Text>
       </View>
     );
@@ -103,11 +81,11 @@ export default function InterestDetailScreen() {
     if (!id || isBoosting) return;
     if (!boostEligible) {
       RNAlert.alert(
-        '속보는 Pro 이상 플랜 전용이에요',
-        '월 5회(Pro) / 30회(Power) 즉시 갱신 알림을 받을 수 있어요.',
+        t('interest.detail.boostPlan.title'),
+        t('interest.detail.boostPlan.body'),
         [
-          { text: '취소', style: 'cancel' },
-          { text: '요금제 보기', onPress: () => router.push('/pricing') },
+          { text: t('common.cancel'), style: 'cancel' },
+          { text: t('interest.detail.boostPlan.viewPricing'), onPress: () => router.push('/pricing') },
         ],
       );
       return;
@@ -120,23 +98,23 @@ export default function InterestDetailScreen() {
         if (r.ok) {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
           RNAlert.alert(
-            '속보 갱신 완료',
-            `이번 달 남은 횟수: ${r.remaining}/${r.quota}`,
+            t('interest.detail.boostDone.title'),
+            t('interest.detail.boostDone.body', { remaining: r.remaining, quota: r.quota }),
           );
         } else {
           Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
           const msg =
             r.reason === 'quota'
-              ? `이번 달 속보 횟수를 모두 사용했어요 (${r.used}/${r.quota}).`
+              ? t('interest.detail.boostFail.quota', { used: r.used, quota: r.quota })
               : r.reason === 'plan'
-                ? '속보는 Pro 이상 플랜에서 사용할 수 있어요.'
-                : '속보 갱신에 실패했어요. 잠시 후 다시 시도해 주세요.';
-          RNAlert.alert('속보 사용 불가', msg);
+                ? t('interest.detail.boostFail.plan')
+                : t('interest.detail.boostFail.generic');
+          RNAlert.alert(t('interest.detail.boostFail.title'), msg);
         }
       }
     } catch {
       if (Platform.OS !== 'web') {
-        RNAlert.alert('오류', '속보 요청에 실패했어요.');
+        RNAlert.alert(t('common.error'), t('interest.detail.boostError'));
       }
     } finally {
       setIsBoosting(false);
@@ -149,11 +127,11 @@ export default function InterestDetailScreen() {
     if (Platform.OS !== 'web') {
       const msg =
         result.newAlertCount > 0
-          ? `새 알림 ${result.newAlertCount}건을 가져왔어요.`
+          ? t('interest.detail.refreshNew', { n: result.newAlertCount })
           : result.totalCollected === 0
-            ? '잠시 후 다시 시도해주세요. (쿨다운)'
-            : '아직 새로운 소식이 없어요.';
-      RNAlert.alert('실시간 수집', msg);
+            ? t('interest.detail.refreshCooldown')
+            : t('interest.detail.refreshNoNew');
+      RNAlert.alert(t('interest.detail.refreshTitle'), msg);
     }
   };
 
@@ -166,7 +144,7 @@ export default function InterestDetailScreen() {
             <Text style={[styles.heroTitle, { color: colors.foreground }]}>{interest.displayName}</Text>
             <View style={[styles.intentBadge, { backgroundColor: interest.color + '30' }]}>
               <Text style={[styles.intentText, { color: interest.color }]}>
-                {INTENT_LABELS[spec.intentType] ?? spec.intentType}
+                {t(`intent.${spec.intentType}`)}
               </Text>
             </View>
           </View>
@@ -175,44 +153,44 @@ export default function InterestDetailScreen() {
         <View style={styles.statsRow}>
           <View style={[styles.statItem, { borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: interest.color }]}>{interest.alertCount}</Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>총 알림</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{t('interest.detail.statTotal')}</Text>
           </View>
           <View style={[styles.statItem, { borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: interest.color }]}>
-              {spec.urgency === 'high' ? '긴급' : spec.urgency === 'medium' ? '보통' : '낮음'}
+              {t(`urgency.${spec.urgency}`)}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>긴급도</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{t('interest.detail.statUrgency')}</Text>
           </View>
           <View style={[styles.statItem, { borderColor: colors.border }]}>
             <Text style={[styles.statValue, { color: interest.color }]}>
-              {spec.privacyLevel === 'public' ? '공개' : spec.privacyLevel === 'friends' ? '친구' : '비공개'}
+              {t(`privacy.${spec.privacyLevel}`)}
             </Text>
-            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>공개범위</Text>
+            <Text style={[styles.statLabel, { color: colors.mutedForeground }]}>{t('interest.detail.statPrivacy')}</Text>
           </View>
         </View>
       </View>
 
       <View style={[styles.specSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
-        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>AI 분석 결과</Text>
+        <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{t('interest.detail.aiTitle')}</Text>
         <View style={styles.specRow}>
-          <Text style={[styles.specLabel, { color: colors.mutedForeground }]}>목표</Text>
+          <Text style={[styles.specLabel, { color: colors.mutedForeground }]}>{t('interest.detail.goal')}</Text>
           <Text style={[styles.specValue, { color: colors.foreground }]}>{spec.desiredOutcome}</Text>
         </View>
         {spec.locationScope && (
           <View style={styles.specRow}>
-            <Text style={[styles.specLabel, { color: colors.mutedForeground }]}>지역</Text>
+            <Text style={[styles.specLabel, { color: colors.mutedForeground }]}>{t('interest.detail.region')}</Text>
             <Text style={[styles.specValue, { color: colors.foreground }]}>{spec.locationScope}</Text>
           </View>
         )}
         <View style={styles.sourcesLabel}>
-          <Text style={[styles.specLabel, { color: colors.mutedForeground }]}>수집 소스</Text>
+          <Text style={[styles.specLabel, { color: colors.mutedForeground }]}>{t('interest.detail.sources')}</Text>
         </View>
         <View style={styles.sources}>
           {spec.suggestedSources.map((src, i) => (
             <View key={src} style={[styles.sourceChip, { backgroundColor: colors.secondary }]}>
               <Text style={[styles.sourceRank, { color: colors.primary }]}>{i + 1}</Text>
               <Text style={[styles.sourceText, { color: colors.foreground }]}>
-                {SOURCE_LABELS[src] ?? src}
+                {t(`source.${src}`)}
               </Text>
             </View>
           ))}
@@ -229,10 +207,10 @@ export default function InterestDetailScreen() {
           />
           <View>
             <Text style={[styles.collectStatusTitle, { color: colors.foreground }]}>
-              {autoCollectEnabled ? '실시간 수집 중' : '자동 수집 꺼짐'}
+              {autoCollectEnabled ? t('interest.detail.realtime') : t('interest.detail.autoOff')}
             </Text>
             <Text style={[styles.collectStatusSub, { color: colors.mutedForeground }]}>
-              마지막 수집: {relativeTime(interest.lastRefreshedAt)}
+              {t('interest.detail.lastCollect', { t: fmtRelative(interest.lastRefreshedAt, language) })}
             </Text>
           </View>
         </View>
@@ -258,7 +236,7 @@ export default function InterestDetailScreen() {
               <Feather name="zap" size={14} color="#EF4444" />
             )}
             <Text style={[styles.refreshBtnText, { color: '#EF4444' }]}>
-              {isBoosting ? '속보 중...' : '속보'}
+              {isBoosting ? t('interest.detail.boosting') : t('interest.detail.boost')}
             </Text>
           </TouchableOpacity>
           <TouchableOpacity
@@ -280,7 +258,7 @@ export default function InterestDetailScreen() {
               <Feather name="refresh-cw" size={14} color={interest.color} />
             )}
             <Text style={[styles.refreshBtnText, { color: interest.color }]}>
-              {isRefreshing ? '수집 중...' : '지금 수집'}
+              {isRefreshing ? t('interest.detail.refreshing') : t('interest.detail.refresh')}
             </Text>
           </TouchableOpacity>
         </View>
@@ -289,7 +267,7 @@ export default function InterestDetailScreen() {
       {interestAlerts.length > 0 && (
         <View style={styles.alertsHeaderRow}>
           <Text style={[styles.alertsHeader, { color: colors.foreground }]}>
-            알림 히스토리 {interestAlerts.length}개
+            {t('interest.detail.alertHistory', { n: interestAlerts.length })}
           </Text>
           {newCount > 0 && (
             <View style={[styles.newPill, { backgroundColor: colors.destructive ?? '#EF4444' }]}>

@@ -124,7 +124,8 @@ export async function generateAlertsForSpec(
   count = 3,
   existingAlertSummaries: { title: string; summary: string }[] = [],
   deviceId?: string,
-  plan?: 'free' | 'basic' | 'pro' | 'power'
+  plan?: 'free' | 'basic' | 'pro' | 'power',
+  userLanguage?: 'ko' | 'en'
 ): Promise<GenerateAlertsWithStepsResult> {
   try {
     const result = await callGenerateAlerts(
@@ -146,7 +147,8 @@ export async function generateAlertsForSpec(
       count,
       existingAlertSummaries,
       deviceId,
-      plan
+      plan,
+      userLanguage
     );
     const alerts = (result.alerts ?? []).map((a): Alert => {
       const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)

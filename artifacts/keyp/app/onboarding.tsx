@@ -12,33 +12,13 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 
-const SLIDES = [
-  {
-    id: '1',
-    icon: 'zap' as const,
-    iconColor: '#5B7FFF',
-    title: '검색이 아니라,\n당신의 관심사를\n먼저 알아채는 앱',
-    subtitle:
-      'KeyP는 자연어로 등록한 관심사를 AI가 구조화하고, 가장 확률 높은 소스부터 먼저 탐색합니다.',
-  },
-  {
-    id: '2',
-    icon: 'cpu' as const,
-    iconColor: '#4ADE80',
-    title: '멀티 에이전트가\n당신 대신 일합니다',
-    subtitle:
-      '플래너, 소스 라우터, 수집, 검증, 전달 에이전트가 협력해 필요한 정보만 골라 알려줍니다.',
-  },
-  {
-    id: '3',
-    icon: 'users' as const,
-    iconColor: '#FF6B8A',
-    title: '같은 관심사를 가진\n사람을 연결합니다',
-    subtitle:
-      '관심사 기반 내부 상호매칭으로 동행, 협업, 친구를 찾을 수 있습니다. 완전 opt-in 방식.',
-  },
+const SLIDE_META = [
+  { id: '1', icon: 'zap' as const, iconColor: '#5B7FFF', titleKey: 'onboarding.slide1.title', subtitleKey: 'onboarding.slide1.subtitle' },
+  { id: '2', icon: 'cpu' as const, iconColor: '#4ADE80', titleKey: 'onboarding.slide2.title', subtitleKey: 'onboarding.slide2.subtitle' },
+  { id: '3', icon: 'users' as const, iconColor: '#FF6B8A', titleKey: 'onboarding.slide3.title', subtitleKey: 'onboarding.slide3.subtitle' },
 ];
 
 export default function Onboarding() {
@@ -46,10 +26,13 @@ export default function Onboarding() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { completeOnboarding } = useAuth();
+  const { language, setLanguage } = useApp();
+  const { t } = useI18n();
   const [activeIndex, setActiveIndex] = useState(0);
 
-  const isLast = activeIndex === SLIDES.length - 1;
-  const currentSlide = SLIDES[activeIndex];
+  const isLast = activeIndex === SLIDE_META.length - 1;
+  const isFirst = activeIndex === 0;
+  const currentSlide = SLIDE_META[activeIndex];
 
   const handleNext = async () => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
@@ -90,23 +73,59 @@ export default function Onboarding() {
           onPress={handleSkip}
           hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
           accessibilityRole="button"
-          accessibilityLabel="온보딩 건너뛰기"
+          accessibilityLabel={t('onboarding.skipA11y')}
         >
-          <Text style={[styles.skip, { color: colors.mutedForeground }]}>건너뛰기</Text>
+          <Text style={[styles.skip, { color: colors.mutedForeground }]}>{t('onboarding.skip')}</Text>
         </TouchableOpacity>
       </View>
+
+      {isFirst && (
+        <View style={styles.langPicker}>
+          <Text style={[styles.langTitle, { color: colors.foreground }]}>{t('onboarding.lang.title')}</Text>
+          <Text style={[styles.langSubtitle, { color: colors.mutedForeground }]}>{t('onboarding.lang.subtitle')}</Text>
+          <View style={styles.langRow}>
+            {(['ko', 'en'] as const).map((lng) => {
+              const active = language === lng;
+              return (
+                <TouchableOpacity
+                  key={lng}
+                  onPress={() => {
+                    setLanguage(lng);
+                    Haptics.selectionAsync().catch(() => {});
+                  }}
+                  activeOpacity={0.85}
+                  style={[
+                    styles.langBtn,
+                    {
+                      backgroundColor: active ? colors.primary + '20' : colors.card,
+                      borderColor: active ? colors.primary : colors.border,
+                    },
+                  ]}
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                >
+                  <Text style={[styles.langBtnText, { color: colors.foreground }]}>
+                    {lng === 'ko' ? '한국어' : 'English'}
+                  </Text>
+                  {active && <Feather name="check" size={16} color={colors.primary} />}
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+        </View>
+      )}
 
       <View style={styles.slide}>
         <View style={[styles.iconWrap, { backgroundColor: currentSlide.iconColor + '20' }]}>
           <Feather name={currentSlide.icon} size={56} color={currentSlide.iconColor} />
         </View>
-        <Text style={[styles.title, { color: colors.foreground }]}>{currentSlide.title}</Text>
-        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{currentSlide.subtitle}</Text>
+        <Text style={[styles.title, { color: colors.foreground }]}>{t(currentSlide.titleKey)}</Text>
+        <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{t(currentSlide.subtitleKey)}</Text>
       </View>
 
       <View style={[styles.footer, { paddingBottom: bottomInset + 24 }]}>
         <View style={styles.dots}>
-          {SLIDES.map((_, i) => (
+          {SLIDE_META.map((_, i) => (
             <View
               key={i}
               style={[
@@ -126,7 +145,7 @@ export default function Onboarding() {
               onPress={handleBack}
               activeOpacity={0.85}
               accessibilityRole="button"
-              accessibilityLabel="이전 슬라이드"
+              accessibilityLabel={t('onboarding.prev')}
             >
               <Feather name="arrow-left" size={18} color={colors.foreground} />
             </TouchableOpacity>
@@ -136,9 +155,9 @@ export default function Onboarding() {
             onPress={handleNext}
             activeOpacity={0.85}
             accessibilityRole="button"
-            accessibilityLabel={isLast ? '시작하기' : '다음 슬라이드'}
+            accessibilityLabel={isLast ? t('onboarding.start') : t('onboarding.next')}
           >
-            <Text style={styles.nextText}>{isLast ? '시작하기' : '다음'}</Text>
+            <Text style={styles.nextText}>{isLast ? t('onboarding.start') : t('onboarding.next')}</Text>
             <Feather name="arrow-right" size={18} color="#fff" />
           </TouchableOpacity>
         </View>
@@ -166,6 +185,39 @@ const styles = StyleSheet.create({
   skip: {
     fontSize: 14,
     fontFamily: 'Inter_500Medium',
+  },
+  langPicker: {
+    paddingHorizontal: 24,
+    paddingTop: 8,
+    paddingBottom: 4,
+    gap: 6,
+  },
+  langTitle: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  langSubtitle: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+  },
+  langRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginTop: 6,
+  },
+  langBtn: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 12,
+    borderWidth: 1,
+  },
+  langBtnText: {
+    fontSize: 14,
+    fontFamily: 'Inter_600SemiBold',
   },
   slide: {
     flex: 1,

@@ -27,4 +27,8 @@ export interface AlertData {
    * @minimum 0
    */
   eventMinutesAgo?: number;
+  /** BCP-47-ish short language code of the source (ko, en, ja, zh, es, fr, de, other). */
+  originalLanguage?: string;
+  /** Whether the title/summary were translated from originalLanguage into the requested userLanguage. */
+  translated?: boolean;
 }

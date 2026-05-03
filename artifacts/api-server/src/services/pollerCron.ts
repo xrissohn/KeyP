@@ -92,14 +92,20 @@ const bucketCache = new Map<string, BucketEntry>();
 // 5-min TTL only helps after the first call has completed.
 const bucketInFlight = new Map<string, Promise<GeneratedAlertsResult | null>>();
 
-function bucketKeyForSpec(spec: InterestSpecData): string {
+function bucketKeyForSpec(
+  spec: InterestSpecData,
+  userLanguage: "ko" | "en" = "ko"
+): string {
   // Only the fields that actually drive search results — strip user-specific
   // noise (intent, urgency) so equivalent topics collapse to one bucket.
+  // userLanguage MUST be in the key: cached payloads contain Verifier-translated
+  // title/summary, so a KO bucket cannot be served to an EN user (and vice versa).
   const norm = {
     topic: (spec.topic ?? "").toLowerCase().trim(),
     entities: [...(spec.entities ?? [])].map((s) => s.toLowerCase().trim()).sort(),
     locationScope: (spec.locationScope ?? "").toLowerCase().trim(),
     sources: [...(spec.suggestedSources ?? [])].sort(),
+    lang: userLanguage,
   };
   return createHash("sha256").update(JSON.stringify(norm)).digest("hex").slice(0, 24);
 }
@@ -193,6 +199,7 @@ async function callGenerateAlerts(
   spec: InterestSpecData,
   count: number,
   existingAlertSummaries: { title: string; summary: string }[] = [],
+  userLanguage: "ko" | "en" = "ko",
 ): Promise<GeneratedAlertsResult | null> {
   const port = process.env["PORT"];
   if (!port) return null;
@@ -200,7 +207,10 @@ async function callGenerateAlerts(
     const res = await fetch(`http://127.0.0.1:${port}/api/agents/generate-alerts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ spec, count, existingAlertSummaries }),
+      // userLanguage is best-effort from spec.userLanguage (client may write it
+      // there); per-device language storage in device_plans would be cleaner
+      // but is deferred. Defaults to 'ko'.
+      body: JSON.stringify({ spec, count, existingAlertSummaries, userLanguage }),
     });
     if (!res.ok) {
       logger.warn({ status: res.status }, "[poller] generate-alerts non-2xx");
@@ -234,8 +244,9 @@ async function fetchAlertsForSpec(
   spec: InterestSpecData,
   count: number,
   force: boolean,
+  userLanguage: "ko" | "en" = "ko",
 ): Promise<{ result: GeneratedAlertsResult | null; fromCache: boolean }> {
-  const key = bucketKeyForSpec(spec);
+  const key = bucketKeyForSpec(spec, userLanguage);
   if (!force) {
     const cached = cacheGet(key);
     if (cached) return { result: cached, fromCache: true };
@@ -246,7 +257,7 @@ async function fetchAlertsForSpec(
     }
   }
   const fetchCount = Math.max(count + 4, 5);
-  const promise = callGenerateAlerts(spec, fetchCount, []).then((result) => {
+  const promise = callGenerateAlerts(spec, fetchCount, [], userLanguage).then((result) => {
     if (result && result.alerts.length > 0) cacheSet(key, result);
     return result;
   });
@@ -270,8 +281,12 @@ export async function sweepOne(rowInterestId: string, force = false): Promise<vo
     .limit(1);
   if (!row) return;
 
-  const spec = row.spec as InterestSpecData & { plan?: PlanTier };
-  const { result, fromCache } = await fetchAlertsForSpec(spec, 1, force);
+  const spec = row.spec as InterestSpecData & { plan?: PlanTier; userLanguage?: string };
+  // Best-effort: client may have written userLanguage into the spec when it
+  // tracked the interest. Per-device language storage in device_plans would
+  // be cleaner but is deferred. Defaults to 'ko' for backwards compat.
+  const userLanguage: "ko" | "en" = spec.userLanguage === "en" ? "en" : "ko";
+  const { result, fromCache } = await fetchAlertsForSpec(spec, 1, force, userLanguage);
   const now = new Date();
 
   await db
@@ -379,10 +394,16 @@ export async function sweepOne(rowInterestId: string, force = false): Promise<vo
   })[0]!;
 
   const extraCount = ourFresh.length - 1;
-  const title = `${spec.topic} · 새 소식`;
+  // Localize the push wrapper to the user's UI language. The alert title itself
+  // was already translated by the Verifier to userLanguage; only the framing
+  // ("New" / "and N more") needs a parallel KO/EN copy.
+  const isEn = userLanguage === "en";
+  const title = isEn ? `${spec.topic} · New` : `${spec.topic} · 새 소식`;
   const body =
     extraCount > 0
-      ? `${top.alert.title} (외 ${extraCount}건)`
+      ? isEn
+        ? `${top.alert.title} (and ${extraCount} more)`
+        : `${top.alert.title} (외 ${extraCount}건)`
       : top.alert.title;
 
   const messages: ExpoPushMessage[] = [

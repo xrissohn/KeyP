@@ -3,16 +3,9 @@ import * as Haptics from 'expo-haptics';
 import { useRouter } from 'expo-router';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { Match, MatchMode } from '@/types';
-
-const MODE_LABELS: Record<MatchMode, string> = {
-  friend: '친구찾기',
-  companion: '동행',
-  collaborate: '협업',
-  meal_mate: '밥친구',
-  date: '데이트',
-};
 
 const MODE_ICONS: Record<MatchMode, keyof typeof Feather.glyphMap> = {
   friend: 'smile',
@@ -20,13 +13,6 @@ const MODE_ICONS: Record<MatchMode, keyof typeof Feather.glyphMap> = {
   collaborate: 'briefcase',
   meal_mate: 'coffee',
   date: 'heart',
-};
-
-const STATUS_LABELS: Record<string, string> = {
-  pending: '수락 대기',
-  accepted: '연결됨',
-  rejected: '거절됨',
-  blocked: '차단됨',
 };
 
 interface Props {
@@ -38,6 +24,7 @@ interface Props {
 export default function MatchCard({ match, onAccept, onReject }: Props) {
   const colors = useColors();
   const router = useRouter();
+  const { t } = useI18n();
 
   const handlePress = () => {
     router.push({ pathname: '/match/[id]', params: { id: match.id } });
@@ -76,7 +63,7 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
             <View style={[styles.modeBadge, { backgroundColor: colors.secondary }]}>
               <Feather name={modeIcon} size={10} color={colors.primary} />
               <Text style={[styles.modeText, { color: colors.primary }]}>
-                {MODE_LABELS[match.mode]}
+                {t(`match.mode.${match.mode}`)}
               </Text>
             </View>
           </View>
@@ -91,7 +78,7 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
         </View>
         <View style={styles.scoreWrap}>
           <Text style={[styles.score, { color: scoreColor }]}>{match.score}</Text>
-          <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>매칭</Text>
+          <Text style={[styles.scoreLabel, { color: colors.mutedForeground }]}>{t('match.scoreLabel')}</Text>
         </View>
       </View>
 
@@ -103,7 +90,7 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
 
       <View style={styles.sharedRow}>
         <Feather name="link" size={12} color={colors.primary} />
-        <Text style={[styles.sharedLabel, { color: colors.mutedForeground }]}>공통 관심사</Text>
+        <Text style={[styles.sharedLabel, { color: colors.mutedForeground }]}>{t('match.shared')}</Text>
         {match.sharedInterests.map((s) => (
           <View key={s} style={[styles.sharedTag, { backgroundColor: colors.primary + '20' }]}>
             <Text style={[styles.sharedText, { color: colors.primary }]}>{s}</Text>
@@ -123,7 +110,7 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
             activeOpacity={0.8}
           >
             <Feather name="x" size={16} color={colors.mutedForeground} />
-            <Text style={[styles.rejectText, { color: colors.mutedForeground }]}>거절</Text>
+            <Text style={[styles.rejectText, { color: colors.mutedForeground }]}>{t('match.reject')}</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={[styles.acceptBtn, { backgroundColor: colors.primary }]}
@@ -131,7 +118,7 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
             activeOpacity={0.8}
           >
             <Feather name="check" size={16} color="#fff" />
-            <Text style={[styles.acceptText]}>수락</Text>
+            <Text style={[styles.acceptText]}>{t('match.accept')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -139,7 +126,7 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
       {match.status === 'accepted' && (
         <View style={[styles.statusBadge, { backgroundColor: colors.success + '15' }]}>
           <Feather name="check-circle" size={14} color={colors.success} />
-          <Text style={[styles.statusText, { color: colors.success }]}>연결됨</Text>
+          <Text style={[styles.statusText, { color: colors.success }]}>{t('match.connected')}</Text>
         </View>
       )}
     </TouchableOpacity>
@@ -147,150 +134,31 @@ export default function MatchCard({ match, onAccept, onReject }: Props) {
 }
 
 const styles = StyleSheet.create({
-  card: {
-    borderRadius: 16,
-    borderWidth: 1,
-    padding: 16,
-    marginBottom: 12,
-    gap: 12,
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'flex-start',
-    gap: 12,
-  },
-  avatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  avatarText: {
-    fontSize: 20,
-    fontFamily: 'Inter_700Bold',
-    color: '#FF6B8A',
-  },
-  userInfo: {
-    flex: 1,
-    gap: 4,
-  },
-  nameRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    flexWrap: 'wrap',
-  },
-  displayName: {
-    fontSize: 16,
-    fontFamily: 'Inter_700Bold',
-  },
-  modeBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  modeText: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  locationRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 3,
-  },
-  location: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-  },
-  scoreWrap: {
-    alignItems: 'center',
-    minWidth: 40,
-  },
-  score: {
-    fontSize: 22,
-    fontFamily: 'Inter_700Bold',
-  },
-  scoreLabel: {
-    fontSize: 10,
-    fontFamily: 'Inter_400Regular',
-  },
-  bio: {
-    fontSize: 13,
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 19,
-  },
-  sharedRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    flexWrap: 'wrap',
-  },
-  sharedLabel: {
-    fontSize: 12,
-    fontFamily: 'Inter_500Medium',
-  },
-  sharedTag: {
-    paddingHorizontal: 8,
-    paddingVertical: 3,
-    borderRadius: 8,
-  },
-  sharedText: {
-    fontSize: 11,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  explanation: {
-    fontSize: 12,
-    fontFamily: 'Inter_400Regular',
-    lineHeight: 18,
-  },
-  actions: {
-    flexDirection: 'row',
-    gap: 10,
-    marginTop: 2,
-  },
-  rejectBtn: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
-    borderWidth: 1,
-  },
-  rejectText: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-  },
-  acceptBtn: {
-    flex: 2,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 10,
-    borderRadius: 12,
-  },
-  acceptText: {
-    fontSize: 14,
-    fontFamily: 'Inter_600SemiBold',
-    color: '#fff',
-  },
-  statusBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    borderRadius: 10,
-    alignSelf: 'flex-start',
-  },
-  statusText: {
-    fontSize: 13,
-    fontFamily: 'Inter_600SemiBold',
-  },
+  card: { borderRadius: 16, borderWidth: 1, padding: 16, marginBottom: 12, gap: 12 },
+  header: { flexDirection: 'row', alignItems: 'flex-start', gap: 12 },
+  avatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: 20, fontFamily: 'Inter_700Bold', color: '#FF6B8A' },
+  userInfo: { flex: 1, gap: 4 },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8, flexWrap: 'wrap' },
+  displayName: { fontSize: 16, fontFamily: 'Inter_700Bold' },
+  modeBadge: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  modeText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  locationRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
+  location: { fontSize: 12, fontFamily: 'Inter_400Regular' },
+  scoreWrap: { alignItems: 'center', minWidth: 40 },
+  score: { fontSize: 22, fontFamily: 'Inter_700Bold' },
+  scoreLabel: { fontSize: 10, fontFamily: 'Inter_400Regular' },
+  bio: { fontSize: 13, fontFamily: 'Inter_400Regular', lineHeight: 19 },
+  sharedRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  sharedLabel: { fontSize: 12, fontFamily: 'Inter_500Medium' },
+  sharedTag: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 8 },
+  sharedText: { fontSize: 11, fontFamily: 'Inter_600SemiBold' },
+  explanation: { fontSize: 12, fontFamily: 'Inter_400Regular', lineHeight: 18 },
+  actions: { flexDirection: 'row', gap: 10, marginTop: 2 },
+  rejectBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12, borderWidth: 1 },
+  rejectText: { fontSize: 14, fontFamily: 'Inter_600SemiBold' },
+  acceptBtn: { flex: 2, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 6, paddingVertical: 10, borderRadius: 12 },
+  acceptText: { fontSize: 14, fontFamily: 'Inter_600SemiBold', color: '#fff' },
+  statusBadge: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10, alignSelf: 'flex-start' },
+  statusText: { fontSize: 13, fontFamily: 'Inter_600SemiBold' },
 });

@@ -499,6 +499,18 @@ interface CollectedCandidate {
   minutesAgo: number;
   eventMinutesAgo: number;
   tags: string[];
+  originalLanguage?: string;
+}
+
+const ALLOWED_LANGS = ["ko", "en", "ja", "zh", "es", "fr", "de", "other"] as const;
+type AllowedLang = (typeof ALLOWED_LANGS)[number];
+function normalizeLang(v: unknown): AllowedLang {
+  if (typeof v !== "string") return "other";
+  const lower = v.toLowerCase().slice(0, 5);
+  const head = lower.split(/[-_]/)[0] ?? "";
+  return (ALLOWED_LANGS as readonly string[]).includes(head)
+    ? (head as AllowedLang)
+    : "other";
 }
 
 // Deterministic Korean-friendly semantic-dedup helpers. Whitespace tokenization
@@ -578,6 +590,14 @@ router.post("/agents/generate-alerts", async (req, res) => {
   const planRaw = typeof rawBody["plan"] === "string" ? (rawBody["plan"] as string) : "free";
   const plan: "free" | "basic" | "pro" | "power" =
     planRaw === "basic" || planRaw === "pro" || planRaw === "power" ? planRaw : "free";
+  // userLanguage controls which language the Verifier translates final title+
+  // summary into. Source URLs are NEVER translated (the user opens them in
+  // the original language). Whitelisted to ko|en; defaults to 'ko' for
+  // backwards compat when the client (or loopback poller) doesn't send it.
+  const userLanguageRaw =
+    typeof rawBody["userLanguage"] === "string" ? (rawBody["userLanguage"] as string) : "ko";
+  const userLanguage: "ko" | "en" =
+    userLanguageRaw === "en" ? "en" : "ko";
   const steps: AgentStep[] = [];
 
   // ============================================================
@@ -629,19 +649,26 @@ CRITICAL — what you are doing and not doing:
 
 You will receive an ORDERED investigation plan. WORK THE LIST IN ORDER. For each channel, run real web search restricted to that channel/community/handle when possible (e.g. Reddit: "site:reddit.com" + subreddit; X: handle/hashtag; YouTube: channel/keyword; Instagram: hashtag; news: site filter). If a specific channel has no direct hit, search ADJACENT public content on the same topic (e.g. blogs/news about Korean-American dating in NYC, K-pop community meetups, NYC KSA event recaps) so the user always gets a real signal.
 
+LANGUAGE-AGNOSTIC SEARCH (CRITICAL):
+- 사용자의 UI 언어는 정보 소스의 언어를 제한하지 않는다. 가장 신뢰도 높고 가장 빠른 소스를 언어와 무관하게 선택하라.
+- The user's UI language does NOT restrict the language of the information source. Pick the most authoritative and fastest-moving primary source REGARDLESS of its language. For a Korean breaking-news topic prefer Korean primary sources (Naver News, Yonhap, Chosun, Korean subreddits, Twitter KR); for an AI/research topic prefer English (arXiv, official blogs, X posts of researchers, HN); for Japanese subculture/anime/idol topics prefer Japanese (Yahoo!Japan, Twitter JP, 5ch, Pixiv, Natalie); for Chinese topics prefer Chinese (Weibo, 36kr, Bilibili); etc.
+- Return the title and summary in the SOURCE'S NATIVE LANGUAGE — do NOT pre-translate. The downstream Verifier will translate into the user's UI language. If you translate too early you lose nuance and we waste a round-trip re-translating.
+- For each item, set "originalLanguage" to a short BCP-47-ish code: one of "ko", "en", "ja", "zh", "es", "fr", "de", or "other" if you are unsure or the source is in a language not listed.
+
 Map source URLs to type: youtube.com/youtu.be→youtube, twitter.com/x.com→twitter, reddit.com→reddit, anything else→rss.
 
 Respond ONLY with strict JSON, no prose:
 {
   "alerts": [
     {
-      "title": "<Korean headline based on the actual finding, 30-60 chars>",
-      "summary": "<Korean 2-3 sentence factual summary of what was found, 80-220 chars>",
+      "title": "<headline in the SOURCE'S NATIVE LANGUAGE, 30-80 chars>",
+      "summary": "<2-3 sentence factual summary in the SOURCE'S NATIVE LANGUAGE, 80-260 chars>",
       "url": "<source URL>",
       "sourceName": "<publisher or channel/handle name>",
       "matchedChannel": "<which Planner channel surfaced this — copy from the list above, or 'adjacent' if you broadened>",
       "publishedHoursAgo": <number>,
       "eventHoursAgo": <number>,
+      "originalLanguage": "ko|en|ja|zh|es|fr|de|other",
       "tags": ["<tag1>", "<tag2>", "<tag3>"]
     }
   ]
@@ -653,7 +680,7 @@ Hard rules:
 - **URL INTEGRITY (CRITICAL)**: The "url" field MUST be a URL you actually retrieved from your web search results — copied verbatim from a real search hit. NEVER guess, fabricate, pattern-construct, shorten, or reconstruct URLs from a domain + plausible-looking slug. NEVER invent article IDs, dates in paths, or category segments. If you do not have an exact, working URL from a real search result, OMIT THAT ITEM ENTIRELY and find a different one. Items whose URL returns 404 will be discarded by a downstream reachability check, wasting the user's time — so it is much better to return one item with a verified URL than three items with guessed URLs. Prefer canonical homepage/article URLs over deep-linked search/preview URLs.
 - **Content-recency over republish-recency**: if a recently-published page is actually recapping a much older event/news/gossip, set eventHoursAgo to when the EVENT itself occurred (read the body — dates in the article, "X years ago", "in 2024", etc.). Strongly prefer items whose underlying event is genuinely recent over items merely republished today about old stories.
 - If the user already received the items listed under EXISTING USER ALERTS below, DO NOT return the same story again, even from a different source/URL — find a different, genuinely new development.
-- Translate non-Korean source titles into natural Korean.
+- DO NOT translate. Keep title/summary in the source's native language; the Verifier will handle translation.
 - publishedHoursAgo: estimated hours since the page was published. If unknown use 6.
 - eventHoursAgo: estimated hours since the underlying event/news actually OCCURRED in the real world. If the article is a same-day report on a same-day event, eventHoursAgo ≈ publishedHoursAgo. If the article republishes/recaps an old story, eventHoursAgo is much larger. If you genuinely can't tell, set eventHoursAgo equal to publishedHoursAgo.
 - Tags: salient nouns from the content (Korean preferred).`,
@@ -739,6 +766,7 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
             tags: Array.isArray(a.tags)
               ? a.tags.slice(0, 4).map(String)
               : spec.entities.slice(0, 3),
+            originalLanguage: normalizeLang(a.originalLanguage),
           };
         });
       if (candidates.length === 0) {
@@ -750,7 +778,7 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
           const backupDeadHostsBlock = backupDeadHosts.length > 0
             ? `\n\nKNOWN-DEAD HOSTS (avoid items hosted on these domains): ${backupDeadHosts.join(", ")}`
             : "";
-          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}${backupDeadHostsBlock}`;
+          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Search GLOBALLY across ALL languages — pick the most authoritative/fastest primary source regardless of source language; do NOT pre-translate. Return strict JSON only: {"alerts":[{"title":"<headline in source's native language>","summary":"<2-3 sentence factual summary in source's native language>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"originalLanguage":"<ko|en|ja|zh|es|fr|de|other>","tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}${backupDeadHostsBlock}`;
           const backup = await openrouter.chat.completions.create({
             model: COLLECTOR_MODEL,
             max_tokens: COLLECTOR_MAX_TOKENS,
@@ -790,6 +818,7 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
                 minutesAgo: Math.round(hoursAgo * 60),
                 eventMinutesAgo: Math.round(eventHoursAgo * 60),
                 tags: Array.isArray(a.tags) ? a.tags.slice(0, 4).map(String) : spec.entities.slice(0, 3),
+                originalLanguage: normalizeLang(a.originalLanguage),
               };
             });
         } catch (backupErr) {
@@ -898,21 +927,39 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
       const message = await anthropic.messages.create({
         model: VERIFIER_MODEL,
         max_tokens: VERIFIER_MAX_TOKENS,
-        system: `You are the Verifier Agent of KeyP. Evaluate each candidate alert for credibility, relevance, content-recency, and SEMANTIC NOVELTY.
+        system: `You are the Verifier Agent of KeyP. Evaluate each candidate alert for credibility, relevance, content-recency, and SEMANTIC NOVELTY, AND translate the kept items into the user's UI language.
+
+USER UI LANGUAGE: ${userLanguage}
+
+번역 규칙 / TRANSLATION RULES (CRITICAL):
+- Translate the final \`title\` and \`summary\` of every kept candidate into \`userLanguage\` (current request: ${userLanguage}).
+- 사용자 UI 언어가 ${userLanguage}이면, 통과한 모든 후보의 title과 summary를 ${userLanguage}로 번역해 출력하라.
+- PRESERVE proper nouns (people, brands, places, hashtags, handles, product names) in their original form when they are widely recognized. 고유명사(인명, 브랜드, 지명, 해시태그, 핸들)는 원형 그대로 유지.
+- Do NOT translate the URL, sourceName, or any code/identifier. URL과 sourceName은 절대 수정/번역하지 말 것.
+- Keep the translated summary CONCISE (1-2 sentences in target language). 번역된 summary는 1-2문장으로 간결하게.
+- If the source is already in userLanguage, leave title/summary as-is and set "translated": false. Otherwise rewrite them in userLanguage and set "translated": true.
+- Always echo back "originalLanguage" — copy the value provided per candidate (one of ko|en|ja|zh|es|fr|de|other). If the candidate doesn't carry one, infer it from the title/summary text and use the same short codes.
+
+SOURCE INTEGRITY:
+- The Verifier MUST NOT change \`source.url\` or \`source.name\`. These pass through unchanged from the Collector. (Translation applies ONLY to title and summary.)
 
 For every candidate, output one entry in the same order with:
 - confidence: integer 0-100 reflecting (a) source reliability, (b) match to topic/entities, (c) **content-recency** (publishMinutesAgo AND eventMinutesAgo — penalize items where eventMinutesAgo is far larger than publishMinutesAgo, i.e. old-news republished today), (d) match to user persona/goal.
   Penalize generic statements, off-topic items, unverifiable claims, and stale-event republish posts.
   Boost items with specific facts, named sources, recent OCCURRENCE date, and direct topic match.
-- reason: one Korean sentence (≤80 chars) explaining WHY this matches and why it is fresh.
+- reason: one short sentence in ${userLanguage} (≤80 chars) explaining WHY this matches and why it is fresh.
 - include: boolean. Set to FALSE for ANY of the following:
   • off-topic / low quality
   • the underlying event is much older than the publish date (republished old news)
   • SEMANTIC DUPLICATE of an existing user alert listed below — same story, even from a different source/URL/wording. KeyP's prime directive is "no duplicate alerts even from different outlets". When in doubt about novelty, set include=false.
   • SEMANTIC DUPLICATE of an EARLIER candidate in this same batch (only the first occurrence may be included).
+- title: the (possibly translated) headline in userLanguage, or original if already in userLanguage.
+- summary: the (possibly translated) 1-2 sentence summary in userLanguage, or original if already in userLanguage.
+- translated: boolean — true if you rewrote title/summary into userLanguage, false if the source was already in userLanguage.
+- originalLanguage: short code (ko|en|ja|zh|es|fr|de|other).
 
 Respond ONLY with strict JSON:
-{ "verifications": [ { "confidence": <int>, "reason": "<Korean>", "include": <bool> } ] }`,
+{ "verifications": [ { "confidence": <int>, "reason": "<text in ${userLanguage}>", "include": <bool>, "title": "<text in ${userLanguage}>", "summary": "<text in ${userLanguage}>", "translated": <bool>, "originalLanguage": "<ko|en|ja|zh|es|fr|de|other>" } ] }`,
         messages: [
           {
             role: "user",
@@ -984,22 +1031,59 @@ Return exactly ${candidates.length} verifications in the same order.`,
               : ageMin < 360
               ? "recent"
               : "older";
+          const collectorLang = c.originalLanguage ?? "other";
+          const verifierLang = normalizeLang(v.originalLanguage);
+          const originalLanguage =
+            verifierLang !== "other" ? verifierLang : collectorLang;
+          const vTranslated =
+            typeof v.translated === "boolean" ? v.translated : undefined;
+          const title =
+            typeof v.title === "string" && v.title.length > 0 ? v.title : c.title;
+          const summary =
+            typeof v.summary === "string" && v.summary.length > 0
+              ? v.summary
+              : c.summary;
+          // Derive translated when Verifier didn't explicitly emit it: assume
+          // translated=true if userLanguage differs from originalLanguage AND
+          // Verifier actually returned a different title/summary than the source.
+          const translated =
+            vTranslated !== undefined
+              ? vTranslated
+              : originalLanguage !== userLanguage &&
+                (title !== c.title || summary !== c.summary);
           return {
-            title: c.title,
-            summary: c.summary,
+            title,
+            summary,
             reason:
               typeof v.reason === "string" && v.reason.length > 0
                 ? v.reason
                 : c.reason ?? `${spec.topic} 관심사 매칭`,
             confidence,
             freshness,
+            // Source MUST pass through unchanged — Verifier may not edit url/name.
             source: { type: c.sourceType, name: c.sourceName, url: c.url },
             tags: c.tags,
             minutesAgo: c.minutesAgo,
             eventMinutesAgo: c.eventMinutesAgo,
+            originalLanguage,
+            translated,
           };
         })
         .filter((a): a is AlertData => a !== null);
+      const translatedCount = alerts.filter((a) => a.translated).length;
+      const langSet = new Set<string>();
+      for (const a of alerts) {
+        if (a.originalLanguage) langSet.add(a.originalLanguage);
+      }
+      req.log.info(
+        {
+          translated: translatedCount,
+          notTranslated: alerts.length - translatedCount,
+          userLanguage,
+          languages: [...langSet].slice(0, 3),
+        },
+        "[verifier] translation summary",
+      );
       steps.push({
         agent: "Verifier",
         status: "success",
@@ -1008,7 +1092,10 @@ Return exactly ${candidates.length} verifications in the same order.`,
       });
     } catch (err) {
       req.log.error({ err }, "Verifier agent (Claude) failed");
-      // Fallback: pass candidates through with neutral confidence.
+      // Fallback: pass candidates through with neutral confidence. We
+      // propagate originalLanguage from the Collector when present and set
+      // translated=false (no Verifier ⇒ no translation happened). Title/
+      // summary remain in source language — acceptable degraded mode.
       alerts = candidates.map((c): AlertData => {
         const ageMin = effectiveAge(c);
         const freshness: AlertData["freshness"] =
@@ -1029,6 +1116,8 @@ Return exactly ${candidates.length} verifications in the same order.`,
           tags: c.tags,
           minutesAgo: c.minutesAgo,
           eventMinutesAgo: c.eventMinutesAgo,
+          originalLanguage: c.originalLanguage ?? "other",
+          translated: false,
         };
       });
       steps.push({
@@ -1126,6 +1215,9 @@ Return exactly ${candidates.length} verifications in the same order.`,
         tags: best.tags,
         minutesAgo: best.minutesAgo,
         eventMinutesAgo: best.eventMinutesAgo,
+        // Verifier never ran — propagate source language as-is, no translation.
+        originalLanguage: best.originalLanguage ?? "other",
+        translated: false,
       },
     ];
     steps.push({

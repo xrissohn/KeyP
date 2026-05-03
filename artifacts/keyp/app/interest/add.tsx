@@ -15,35 +15,12 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
-import { useApp } from '@/context/AppContext';
+import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
 import type { AgentStep } from '@workspace/api-client-react';
 import type { InterestSpec } from '@/types';
 
-const AGENT_LABELS: Record<string, { label: string; desc: string }> = {
-  Planner: { label: 'Planner', desc: '관심사 의도/엔티티 구조화 (GPT-5.4)' },
-  SourceRouter: { label: 'SourceRouter', desc: '최적 소스 우선순위 계산' },
-  Collector: { label: 'Collector', desc: '실시간 웹검색 (Perplexity Sonar)' },
-  Verifier: { label: 'Verifier', desc: '신뢰도/관련성 검증 (Claude Sonnet 4.6)' },
-  Deliverer: { label: 'Deliverer', desc: '신선도×신뢰도 정렬' },
-};
 const AGENT_ORDER = ['Planner', 'SourceRouter', 'Collector', 'Verifier', 'Deliverer'];
-
-const INTENT_LABELS: Record<string, string> = {
-  monitor: '모니터링',
-  alert: '알림',
-  opportunity: '기회탐지',
-  match: '매칭',
-  creator_watch: '크리에이터',
-  travel: '여행',
-  local_signal: '로컬',
-};
-
-const URGENCY_LABELS: Record<string, string> = {
-  high: '긴급',
-  medium: '보통',
-  low: '낮음',
-};
 
 const SOURCE_LABELS: Record<string, string> = {
   youtube: 'YouTube',
@@ -53,12 +30,12 @@ const SOURCE_LABELS: Record<string, string> = {
   match: 'KeyP 매칭',
 };
 
-const EXAMPLES = [
-  '방탄소년단 콘서트 일정 알려줘',
-  '다음 달 뉴욕 여행 정보 + 현지 동행자 찾고 싶어',
-  '국내 AI 스타트업 투자 기회 탐지해줘',
-  '호날두 최신 경기 소식 + 기록 업데이트',
-  '서울 힙한 카페 오픈 소식 모니터링',
+const EXAMPLE_KEYS = [
+  'interest.add.example.0',
+  'interest.add.example.1',
+  'interest.add.example.2',
+  'interest.add.example.3',
+  'interest.add.example.4',
 ];
 
 export default function AddInterestScreen() {
@@ -67,6 +44,7 @@ export default function AddInterestScreen() {
   const router = useRouter();
   const { user } = useAuth();
   const { addInterest } = useApp();
+  const { t } = useI18n();
   const [text, setText] = useState('');
   const [phase, setPhase] = useState<'input' | 'analyzing' | 'result'>('input');
   const [spec, setSpec] = useState<InterestSpec | null>(null);
@@ -97,7 +75,7 @@ export default function AddInterestScreen() {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch {
       if (requestIdRef.current !== myRequestId) return;
-      Alert.alert('오류', '분석 중 오류가 발생했습니다. 다시 시도해주세요.');
+      Alert.alert(t('common.error'), t('interest.add.error.body'));
       setPhase('input');
     }
   };
@@ -117,17 +95,27 @@ export default function AddInterestScreen() {
   // Build a server-driven step list. Use the canonical agent order as a hint to
   // place known agents in expected slots, but also append any unknown agents
   // emitted by the server so the UI never silently drops a step.
+  const agentMeta = (agent: string): { label: string; desc: string } => {
+    if (AGENT_ORDER.includes(agent)) {
+      return {
+        label: t(`interest.add.agent.${agent}.label`),
+        desc: t(`interest.add.agent.${agent}.desc`),
+      };
+    }
+    return { label: agent, desc: '' };
+  };
+
   const buildStepList = (): { agent: string; completed?: AgentStep; meta: { label: string; desc: string } }[] => {
     const seen = new Set<string>();
     const out: { agent: string; completed?: AgentStep; meta: { label: string; desc: string } }[] = [];
     for (const agent of AGENT_ORDER) {
       const completed = steps.find((s) => s.agent === agent);
-      out.push({ agent, completed, meta: AGENT_LABELS[agent] ?? { label: agent, desc: '' } });
+      out.push({ agent, completed, meta: agentMeta(agent) });
       seen.add(agent);
     }
     for (const s of steps) {
       if (!seen.has(s.agent)) {
-        out.push({ agent: s.agent, completed: s, meta: { label: s.agent, desc: '' } });
+        out.push({ agent: s.agent, completed: s, meta: agentMeta(s.agent) });
         seen.add(s.agent);
       }
     }
@@ -182,7 +170,7 @@ export default function AddInterestScreen() {
         >
           <Feather name="x" size={18} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.navTitle, { color: colors.foreground }]}>관심사 등록</Text>
+        <Text style={[styles.navTitle, { color: colors.foreground }]}>{t('interest.add.title')}</Text>
         <View style={{ width: 36 }} />
       </View>
 
@@ -197,17 +185,17 @@ export default function AddInterestScreen() {
                 <Feather name="cpu" size={28} color={colors.primary} />
               </View>
               <Text style={[styles.introTitle, { color: colors.foreground }]}>
-                관심사를 자연어로 입력하세요
+                {t('interest.add.intro.title')}
               </Text>
               <Text style={[styles.introSubtitle, { color: colors.mutedForeground }]}>
-                AI 플래너 에이전트가 분석해 최적의 소스를 찾아드립니다
+                {t('interest.add.intro.subtitle')}
               </Text>
             </View>
 
             <View style={[styles.inputCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <TextInput
                 style={[styles.textInput, { color: colors.foreground }]}
-                placeholder="예) 다음 달 도쿄 여행 정보 + 현지 맛집, BTS 월드투어 일정..."
+                placeholder={t('interest.add.placeholder')}
                 placeholderTextColor={colors.mutedForeground}
                 value={text}
                 onChangeText={setText}
@@ -235,7 +223,7 @@ export default function AddInterestScreen() {
                       { color: text.trim() ? '#fff' : colors.mutedForeground },
                     ]}
                   >
-                    AI 분석
+                    {t('interest.add.analyze')}
                   </Text>
                   <Feather
                     name="zap"
@@ -248,19 +236,22 @@ export default function AddInterestScreen() {
 
             <View style={styles.examplesSection}>
               <Text style={[styles.examplesTitle, { color: colors.mutedForeground }]}>
-                예시
+                {t('interest.add.examplesTitle')}
               </Text>
               <View style={styles.examples}>
-                {EXAMPLES.map((ex) => (
-                  <TouchableOpacity
-                    key={ex}
-                    style={[styles.exampleChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}
-                    onPress={() => setText(ex)}
-                    activeOpacity={0.8}
-                  >
-                    <Text style={[styles.exampleText, { color: colors.foreground }]}>{ex}</Text>
-                  </TouchableOpacity>
-                ))}
+                {EXAMPLE_KEYS.map((key) => {
+                  const ex = t(key);
+                  return (
+                    <TouchableOpacity
+                      key={key}
+                      style={[styles.exampleChip, { backgroundColor: colors.secondary, borderColor: colors.border }]}
+                      onPress={() => setText(ex)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.exampleText, { color: colors.foreground }]}>{ex}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </View>
             </View>
           </>
@@ -270,10 +261,10 @@ export default function AddInterestScreen() {
           <View style={styles.analyzingSection}>
             <ActivityIndicator size="large" color={colors.primary} />
             <Text style={[styles.analyzingTitle, { color: colors.foreground }]}>
-              AI 에이전트 분석 중...
+              {t('interest.add.analyzing.title')}
             </Text>
             <Text style={[styles.analyzingSubtitle, { color: colors.mutedForeground }]}>
-              {steps.length}/{buildStepList().length} 단계 완료 · 실제 웹에서 실시간 신호를 수집합니다
+              {t('interest.add.analyzing.subtitle', { done: steps.length, total: buildStepList().length })}
             </Text>
             <View style={styles.agentSteps}>{renderStepList()}</View>
           </View>
@@ -284,7 +275,7 @@ export default function AddInterestScreen() {
             <View style={[styles.successBadge, { backgroundColor: colors.success + '20' }]}>
               <Feather name="check-circle" size={20} color={colors.success} />
               <Text style={[styles.successText, { color: colors.success }]}>
-                분석 완료 · {steps.filter((s) => s.status === 'success').length}/{steps.length} 단계 성공
+                {t('interest.add.success', { ok: steps.filter((s) => s.status === 'success').length, total: steps.length })}
               </Text>
             </View>
 
@@ -296,17 +287,17 @@ export default function AddInterestScreen() {
               </Text>
 
               <View style={styles.specRows}>
-                <SpecRow label="의도 유형" value={INTENT_LABELS[spec.intentType] ?? spec.intentType} colors={colors} />
-                <SpecRow label="긴급도" value={URGENCY_LABELS[spec.urgency]} colors={colors} />
+                <SpecRow label={t('interest.add.spec.intent')} value={t(`intent.${spec.intentType}`)} colors={colors} />
+                <SpecRow label={t('interest.add.spec.urgency')} value={t(`urgency.${spec.urgency}`)} colors={colors} />
                 {spec.locationScope && (
-                  <SpecRow label="지역 범위" value={spec.locationScope} colors={colors} />
+                  <SpecRow label={t('interest.add.spec.region')} value={spec.locationScope} colors={colors} />
                 )}
-                <SpecRow label="목표" value={spec.desiredOutcome} colors={colors} />
+                <SpecRow label={t('interest.add.spec.goal')} value={spec.desiredOutcome} colors={colors} />
               </View>
 
               {spec.entities.length > 0 && (
                 <View style={styles.entitiesRow}>
-                  <Text style={[styles.entitiesLabel, { color: colors.mutedForeground }]}>키 엔티티</Text>
+                  <Text style={[styles.entitiesLabel, { color: colors.mutedForeground }]}>{t('interest.add.spec.entities')}</Text>
                   <View style={styles.tags}>
                     {spec.entities.slice(0, 5).map((e) => (
                       <View key={e} style={[styles.tag, { backgroundColor: colors.primary + '20' }]}>
@@ -318,7 +309,7 @@ export default function AddInterestScreen() {
               )}
 
               <View style={styles.sourcesRow}>
-                <Text style={[styles.entitiesLabel, { color: colors.mutedForeground }]}>수집 소스 우선순위</Text>
+                <Text style={[styles.entitiesLabel, { color: colors.mutedForeground }]}>{t('interest.add.spec.sourcesPriority')}</Text>
                 <View style={styles.sources}>
                   {spec.suggestedSources.map((src, i) => (
                     <View key={src} style={[styles.sourceItem, { backgroundColor: colors.secondary }]}>
@@ -339,7 +330,7 @@ export default function AddInterestScreen() {
                 activeOpacity={0.8}
               >
                 <Feather name="refresh-cw" size={16} color={colors.mutedForeground} />
-                <Text style={[styles.retryText, { color: colors.mutedForeground }]}>다시 입력</Text>
+                <Text style={[styles.retryText, { color: colors.mutedForeground }]}>{t('interest.add.retry')}</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.doneBtn, { backgroundColor: colors.primary }]}
@@ -347,7 +338,7 @@ export default function AddInterestScreen() {
                 activeOpacity={0.85}
               >
                 <Feather name="check" size={16} color="#fff" />
-                <Text style={styles.doneBtnText}>피드 확인하기</Text>
+                <Text style={styles.doneBtnText}>{t('interest.add.done')}</Text>
               </TouchableOpacity>
             </View>
           </View>

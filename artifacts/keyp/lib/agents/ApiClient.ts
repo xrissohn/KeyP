@@ -91,7 +91,8 @@ export async function callGenerateAlerts(
   count = 3,
   existingAlertSummaries: { title: string; summary: string }[] = [],
   deviceId?: string,
-  plan?: PlanTier
+  plan?: PlanTier,
+  userLanguage?: 'ko' | 'en'
 ): Promise<GeneratedAlertsResult> {
   return postJson<GeneratedAlertsResult>(
     '/agents/generate-alerts',
@@ -101,6 +102,7 @@ export async function callGenerateAlerts(
       existingAlertSummaries,
       ...(deviceId ? { deviceId } : {}),
       ...(plan ? { plan } : {}),
+      ...(userLanguage ? { userLanguage } : {}),
     },
     45000
   );
@@ -142,6 +144,7 @@ export async function callTrackInterest(args: {
   deviceId: string;
   spec: InterestSpecData;
   rawText?: string;
+  userLanguage?: 'ko' | 'en';
 }): Promise<{ ok: boolean; interestId: string }> {
   return postJson('/push/track-interest', args, 10000);
 }
