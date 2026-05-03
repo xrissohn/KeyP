@@ -263,8 +263,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         try {
           const cfg = JSON.parse(autoStr) as { enabled?: boolean; intervalMs?: number };
           if (typeof cfg.enabled === 'boolean') setAutoCollectEnabled(cfg.enabled);
-          if (typeof cfg.intervalMs === 'number' && cfg.intervalMs >= 30_000) {
-            setAutoCollectIntervalMs(cfg.intervalMs);
+          if (typeof cfg.intervalMs === 'number') {
+            // Migration: old installs persisted 2-min intervals before the
+            // pricing rework. Anything below the new 15-min minimum gets
+            // bumped up so the UI matches the actual server cadence.
+            const migrated =
+              cfg.intervalMs < DEFAULT_AUTO_COLLECT_INTERVAL_MS
+                ? DEFAULT_AUTO_COLLECT_INTERVAL_MS
+                : cfg.intervalMs;
+            setAutoCollectIntervalMs(migrated);
           }
         } catch {}
       }

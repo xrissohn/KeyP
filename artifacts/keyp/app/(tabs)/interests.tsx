@@ -42,6 +42,7 @@ export default function InterestsScreen() {
     setAutoCollectEnabled,
     autoCollectIntervalMs,
     lastBackgroundRunAt,
+    plan,
   } = useApp();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
@@ -49,7 +50,17 @@ export default function InterestsScreen() {
 
   const totalAlerts = alerts.length;
   const isAnyRefreshing = refreshingInterestIds.length > 0;
-  const intervalLabel = `${Math.round(autoCollectIntervalMs / 60_000)}분마다`;
+  // Server-side cadence by plan (mirrors api-server/services/pollerCron.ts).
+  // Falls back to the local foreground-refresh interval if plan is unknown.
+  const PLAN_INTERVAL_MIN: Record<string, number> = {
+    free: 60,
+    basic: 15,
+    pro: 10,
+    power: 5,
+  };
+  const planMinutes =
+    PLAN_INTERVAL_MIN[plan] ?? Math.round(autoCollectIntervalMs / 60_000);
+  const intervalLabel = `${planMinutes}분마다`;
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
