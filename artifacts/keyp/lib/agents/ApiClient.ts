@@ -160,7 +160,7 @@ export async function callGenerateAlerts(
       ...(userLanguage ? { userLanguage } : {}),
       ...(latestKnownEventAt ? { latestKnownEventAt } : {}),
     },
-    45000
+    90000
   );
 }
 
