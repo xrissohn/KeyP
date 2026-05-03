@@ -17,6 +17,7 @@ import {
   callUntrackInterest,
   callSetPlan,
   callBoost,
+  callFeedback,
   type PlanTier,
 } from '@/lib/agents/ApiClient';
 import type { AgentStep } from '@workspace/api-client-react';
@@ -319,7 +320,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         // latest known signal for this interest immediately. Going forward,
         // the background collector adds only genuinely new items as they
         // appear, and a push notification fires for each one.
-        const { alerts: newAlerts, steps: collectorSteps } = await generateAlertsForSpec(spec, 1);
+        const seedDeviceId = await getDeviceId().catch(() => undefined);
+        const { alerts: newAlerts, steps: collectorSteps } = await generateAlertsForSpec(
+          spec,
+          1,
+          [],
+          seedDeviceId
+        );
         onSteps?.([...plannerSteps, ...collectorSteps]);
 
         const nowIso = new Date().toISOString();
@@ -383,9 +390,33 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const setAlertFeedback = useCallback((alertId: string, feedback: FeedbackType) => {
+    const target = alertsRef.current.find((a) => a.id === alertId);
     setAlerts((prev) =>
       prev.map((a) => (a.id === alertId ? { ...a, feedback } : a))
     );
+    // Fire-and-forget: notify the server so the personalization layer can
+    // bias future candidate selection + Verifier scoring. Best-effort —
+    // callFeedback never throws, so a network blip won't surface in the UI.
+    if (!target) return;
+    (async () => {
+      try {
+        const deviceId = await getDeviceId();
+        if (!deviceId) return;
+        await callFeedback({
+          deviceId,
+          alertId,
+          interestId: target.interestId,
+          title: target.title,
+          summary: target.summary,
+          sourceType: target.source?.type,
+          sourceName: target.source?.name,
+          tags: target.tags,
+          feedback,
+        });
+      } catch {
+        // swallow — feedback ping is non-critical
+      }
+    })();
   }, []);
 
   const hideAlert = useCallback((alertId: string) => {
@@ -459,10 +490,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .slice(0, 30)
           .map((a) => ({ title: a.title, summary: a.summary }));
 
+        const refreshDeviceId = await getDeviceId().catch(() => undefined);
         const { alerts: incoming } = await generateAlertsForSpec(
           interest.spec,
           REFRESH_BATCH_SIZE,
-          existingSummaries
+          existingSummaries,
+          refreshDeviceId
         );
 
         // Client-side dedupe: URL match, normalized-title match, AND a token

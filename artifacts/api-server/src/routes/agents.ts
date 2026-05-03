@@ -22,6 +22,13 @@ import {
   addToBlacklist,
   getRecentBlacklistedHosts,
 } from "../services/deadUrlBlacklist";
+import {
+  getProfile,
+  scoreCandidate,
+  topTokens,
+  isProfileEmpty,
+  type DeviceProfile,
+} from "../services/feedbackProfile";
 
 const router: IRouter = Router();
 
@@ -561,6 +568,16 @@ router.post("/agents/generate-alerts", async (req, res) => {
   const { spec, count, existingAlertSummaries } = parsed.data;
   const requested = count ?? 3;
   const knownItems = (existingAlertSummaries ?? []).slice(0, 40);
+  // Personalization pass-through fields. Not part of the shared zod schema
+  // (avoids a codegen ripple); we just sniff them off the raw request body.
+  const rawBody = (req.body ?? {}) as Record<string, unknown>;
+  const deviceId =
+    typeof rawBody["deviceId"] === "string" && (rawBody["deviceId"] as string).length > 0
+      ? (rawBody["deviceId"] as string)
+      : undefined;
+  const planRaw = typeof rawBody["plan"] === "string" ? (rawBody["plan"] as string) : "free";
+  const plan: "free" | "basic" | "pro" | "power" =
+    planRaw === "basic" || planRaw === "pro" || planRaw === "power" ? planRaw : "free";
   const steps: AgentStep[] = [];
 
   // ============================================================
@@ -824,6 +841,46 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
   }
 
   // ============================================================
+  // Selector — feedback-driven prefilter (runs AFTER URL gate so we
+  // never spend Verifier tokens on items profiling will discard).
+  // ============================================================
+  let profile: DeviceProfile | null = null;
+  if (deviceId) {
+    profile = await getProfile(deviceId);
+  }
+  if (deviceId && profile && candidates.length > 0) {
+    // Plan-aware KEEP_N. Free plan + rich profile → aggressive trim.
+    const richProfile = profile.eventCount >= 10;
+    const aggressive = plan === "free" && richProfile;
+    const KEEP_N = aggressive
+      ? Math.max(requested + 2, 4)
+      : Math.max(requested * 2, 6);
+    if (candidates.length > KEEP_N) {
+      const selectorStart = Date.now();
+      const before = candidates.length;
+      const scored = candidates.map((c) => ({
+        c,
+        score: scoreCandidate(profile!, {
+          title: c.title,
+          summary: c.summary,
+          sourceType: c.sourceType,
+          sourceName: c.sourceName,
+          tags: c.tags,
+        }),
+      }));
+      scored.sort((a, b) => b.score - a.score);
+      candidates = scored.slice(0, KEEP_N).map((x) => x.c);
+      const after = candidates.length;
+      steps.push({
+        agent: "Selector",
+        status: "success",
+        message: `피드백 기반 사전 선별 ${before}→${after}건`,
+        durationMs: Date.now() - selectorStart,
+      });
+    }
+  }
+
+  // ============================================================
   // Verifier — Claude Sonnet 4.6 (credibility & relevance scoring)
   // ============================================================
   const verifierStart = Date.now();
@@ -869,7 +926,25 @@ ${
         .map((k, i) => `  ${i + 1}. ${k.title} — ${k.summary.slice(0, 200)}`)
         .join("\n")
 }
-
+${
+  profile && !isProfileEmpty(profile)
+    ? `\n사용자 선호 신호 (최근, 가중 적용):\n- 좋아한 예시: ${
+        profile.recentLikes.length === 0
+          ? "(없음)"
+          : profile.recentLikes
+              .slice(0, 3)
+              .map((r) => `${r.title} — ${r.summary.slice(0, 120)}`)
+              .join(" | ")
+      }\n- 싫어한 예시: ${
+        profile.recentDislikes.length === 0
+          ? "(없음)"
+          : profile.recentDislikes
+              .slice(0, 3)
+              .map((r) => `${r.title} — ${r.summary.slice(0, 120)}`)
+              .join(" | ")
+      }\n- 선호 키워드(상위 8): ${topTokens(profile, 8, false).join(", ") || "(없음)"}\n- 비선호 키워드(상위 8): ${topTokens(profile, 8, true).join(", ") || "(없음)"}\n이 신호를 confidence 산정의 가중치로 사용하되, 객관적 신뢰도/관련성/최신성보다 우선해서는 안 된다.\n`
+    : ""
+}
 Candidates (${candidates.length}):
 ${candidates
   .map(

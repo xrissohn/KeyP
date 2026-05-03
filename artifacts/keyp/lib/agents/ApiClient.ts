@@ -89,13 +89,35 @@ export async function callParseInterest(
 export async function callGenerateAlerts(
   spec: InterestSpecData,
   count = 3,
-  existingAlertSummaries: { title: string; summary: string }[] = []
+  existingAlertSummaries: { title: string; summary: string }[] = [],
+  deviceId?: string
 ): Promise<GeneratedAlertsResult> {
   return postJson<GeneratedAlertsResult>(
     '/agents/generate-alerts',
-    { spec, count, existingAlertSummaries },
+    { spec, count, existingAlertSummaries, ...(deviceId ? { deviceId } : {}) },
     45000
   );
+}
+
+// Best-effort feedback ping. Never throws — we don't want a network blip to
+// surface as an error in the UI when the user just tapped 좋아요/싫어요.
+export async function callFeedback(args: {
+  deviceId: string;
+  alertId: string;
+  interestId?: string;
+  title: string;
+  summary: string;
+  sourceType?: string;
+  sourceName?: string;
+  tags?: string[];
+  feedback: 'like' | 'dislike' | 'more' | 'hide';
+}): Promise<{ ok: boolean }> {
+  try {
+    return await postJson<{ ok: boolean }>('/push/feedback', args, 8000);
+  } catch (err) {
+    console.warn('[KeyP] callFeedback failed (best-effort):', err);
+    return { ok: false };
+  }
 }
 
 // ───────────────────────── Push (server-side tracking) ─────────────────────

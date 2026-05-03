@@ -15,6 +15,7 @@ import {
   PushTestResponse as PushTestResultSchema,
 } from "@workspace/api-zod";
 import { sendExpoPush, isExpoPushToken } from "../services/expoPush";
+import { recordFeedback, type FeedbackKind } from "../services/feedbackProfile";
 import {
   setPlanForDevice,
   tryBoost,
@@ -191,6 +192,64 @@ router.post("/push/boost", async (req, res) => {
     return;
   }
   res.json(result);
+});
+
+// ─────────────────────────── Feedback ──────────────────────────────────
+//
+// Records user reactions to alerts (like/dislike/more/hide). Persisted via
+// feedbackProfile.recordFeedback so the agents pipeline can prioritize
+// candidates BEFORE expensive Verifier calls and bias confidence scoring.
+const VALID_FEEDBACK_KINDS = new Set<FeedbackKind>(["like", "dislike", "more", "hide"]);
+
+router.post("/push/feedback", async (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const deviceId = typeof body["deviceId"] === "string" ? (body["deviceId"] as string) : "";
+  const alertId = typeof body["alertId"] === "string" ? (body["alertId"] as string) : "";
+  const feedback =
+    typeof body["feedback"] === "string" ? (body["feedback"] as FeedbackKind) : ("" as FeedbackKind);
+  const title = typeof body["title"] === "string" ? (body["title"] as string) : "";
+  const summary = typeof body["summary"] === "string" ? (body["summary"] as string) : "";
+  if (!deviceId || !alertId || !VALID_FEEDBACK_KINDS.has(feedback)) {
+    res.status(400).json({ error: "Invalid deviceId/alertId/feedback" });
+    return;
+  }
+  const [knownDevice] = await db
+    .select({ id: pushDevicesTable.deviceId })
+    .from(pushDevicesTable)
+    .where(eq(pushDevicesTable.deviceId, deviceId))
+    .limit(1);
+  if (!knownDevice) {
+    res.status(403).json({ error: "Unknown device" });
+    return;
+  }
+  const interestId =
+    typeof body["interestId"] === "string" ? (body["interestId"] as string) : undefined;
+  const sourceType =
+    typeof body["sourceType"] === "string" ? (body["sourceType"] as string) : undefined;
+  const sourceName =
+    typeof body["sourceName"] === "string" ? (body["sourceName"] as string) : undefined;
+  const tagsRaw = body["tags"];
+  const tags = Array.isArray(tagsRaw)
+    ? tagsRaw.filter((t): t is string => typeof t === "string").slice(0, 12)
+    : undefined;
+
+  await recordFeedback({
+    deviceId,
+    alertId,
+    interestId,
+    title,
+    summary,
+    sourceType,
+    sourceName,
+    tags,
+    feedback,
+    ts: Date.now(),
+  });
+  req.log.info(
+    { feedback, titlePreview: title.slice(0, 60) },
+    "[feedback] recorded",
+  );
+  res.json({ ok: true });
 });
 
 // Suppress unused-binding warning for the and import (kept for future filters).
