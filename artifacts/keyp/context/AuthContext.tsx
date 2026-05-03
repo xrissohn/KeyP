@@ -2,11 +2,15 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useAuth as useClerkAuth, useUser } from '@clerk/expo';
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { User } from '@/types';
+import { setClerkTokenProvider } from '@/lib/agents/ApiClient';
+import { isAdminEmail } from '@/lib/admin';
 
 interface AuthContextType {
   user: User | null;
   isLoading: boolean;
   isOnboarded: boolean;
+  /** Mirrored from the client-side admin email list — see lib/admin.ts. */
+  isAdmin: boolean;
   logout: () => Promise<void>;
   completeOnboarding: () => Promise<void>;
 }
@@ -18,8 +22,16 @@ const STORAGE_KEYS = {
 };
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { isLoaded: clerkLoaded, signOut } = useClerkAuth();
+  const { isLoaded: clerkLoaded, signOut, getToken } = useClerkAuth();
   const { user: clerkUser, isLoaded: userLoaded } = useUser();
+
+  // Plumb Clerk's session token into the API client so admin endpoints +
+  // generate-alerts can authenticate as the signed-in user. Cleared on
+  // unmount so signed-out callers don't accidentally reuse a stale token.
+  useEffect(() => {
+    setClerkTokenProvider(() => getToken());
+    return () => setClerkTokenProvider(null);
+  }, [getToken]);
   const [isOnboarded, setIsOnboarded] = useState(false);
   const [onboardLoaded, setOnboardLoaded] = useState(false);
 
@@ -72,10 +84,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   const isLoading = !clerkLoaded || !userLoaded || !onboardLoaded;
+  const isAdmin = isAdminEmail(user?.email);
 
   return (
     <AuthContext.Provider
-      value={{ user, isLoading, isOnboarded, logout, completeOnboarding }}
+      value={{ user, isLoading, isOnboarded, isAdmin, logout, completeOnboarding }}
     >
       {children}
     </AuthContext.Provider>

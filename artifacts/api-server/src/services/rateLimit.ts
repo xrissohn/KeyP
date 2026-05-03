@@ -43,13 +43,26 @@ export function quotaForPlan(plan: string | undefined | null): number {
 export async function reserveQuota(
   deviceId: string | undefined | null,
   plan: string | undefined | null,
+  opts?: { isAdmin?: boolean; isInternal?: boolean },
 ): Promise<QuotaCheck> {
   const limit = quotaForPlan(plan);
-  // No deviceId means the caller is the loopback poller / a server-internal
-  // sweep — those bypass the quota since they're already cost-controlled by
-  // plan-aware polling cadence.
-  if (!deviceId) {
+  // Admins bypass quota entirely — used for internal accounts that need to
+  // run unlimited keyword/interest registration during ops + demos.
+  if (opts?.isAdmin) {
+    const unlimited = Number.MAX_SAFE_INTEGER;
+    return { allowed: true, used: 0, limit: unlimited, remaining: unlimited };
+  }
+  // Trusted in-process loopback sweep (verified via per-boot internal token).
+  // These bypass quota since they're already cost-controlled by the plan-aware
+  // polling cadence on the server.
+  if (opts?.isInternal) {
     return { allowed: true, used: 0, limit, remaining: limit };
+  }
+  // External caller that omitted deviceId — refuse to allocate. Returning
+  // !allowed forces the route to 429, closing the prior abuse path where
+  // anyone could omit deviceId to skip the per-device daily quota.
+  if (!deviceId) {
+    return { allowed: false, used: 0, limit, remaining: 0 };
   }
   const day = utcDay();
   try {

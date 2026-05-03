@@ -9,6 +9,7 @@ import {
 } from "@workspace/db";
 import type { GeneratedAlertsResult, InterestSpecData, AlertData } from "@workspace/api-zod";
 import { logger } from "../lib/logger";
+import { INTERNAL_TOKEN } from "../lib/internalAuth";
 import { sendExpoPush, type ExpoPushMessage } from "./expoPush";
 
 // ────────────────────────────────────────────────────────────────────────
@@ -206,7 +207,7 @@ async function callGenerateAlerts(
   try {
     const res = await fetch(`http://127.0.0.1:${port}/api/agents/generate-alerts`, {
       method: "POST",
-      headers: { "content-type": "application/json" },
+      headers: { "content-type": "application/json", "x-internal-token": INTERNAL_TOKEN },
       // userLanguage is best-effort from spec.userLanguage (client may write it
       // there); per-device language storage in device_plans would be cleaner
       // but is deferred. Defaults to 'ko'.

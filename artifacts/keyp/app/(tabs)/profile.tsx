@@ -52,7 +52,7 @@ export default function ProfileScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { user, logout } = useAuth();
+  const { user, logout, isAdmin } = useAuth();
   const { interests, alerts, matches, savedAlerts, plan, annualBilling, language, setLanguage } = useApp();
   const { t } = useI18n();
   const [langExpanded, setLangExpanded] = React.useState(false);
@@ -116,6 +116,18 @@ export default function ProfileScreen() {
           <MenuItem icon="star" label={t('profile.item.interests')} onPress={() => router.push('/(tabs)/interests')} value={t('common.count', { n: interests.length })} />
           <MenuItem icon="users" label={t('profile.item.matches')} onPress={() => router.push('/(tabs)/match')} value={t('common.count', { n: acceptedMatches })} />
         </View>
+
+        {isAdmin && (
+          <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+            <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{t('profile.section.admin')}</Text>
+            <MenuItem
+              icon="shield"
+              label={t('profile.item.adminDashboard')}
+              onPress={() => router.push('/admin')}
+              value={t('profile.admin.unlimitedBadge')}
+            />
+          </View>
+        )}
 
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
           <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>{t('profile.section.subscription')}</Text>

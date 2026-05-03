@@ -11,38 +11,44 @@ import {
   getBlacklistSize,
   getRecentBlacklistedEntries,
 } from "../services/deadUrlBlacklist";
+import { getAdminContext } from "../lib/adminAuth";
 
 const router: IRouter = Router();
 
 /**
- * Shared admin token gate. Returns true when the request is authorized.
- * - When ADMIN_TOKEN is set, require an exact `x-admin-token` header match.
- * - When unset, allow in non-production (dev/preview) and 404 in prod so the
- *   route's existence isn't even hinted at without a token.
+ * Admin gate. Two acceptance paths:
+ *  - `x-admin-token` header matching `ADMIN_TOKEN` (legacy ops path).
+ *  - Clerk-authenticated session whose user email is in ADMIN_EMAILS.
+ *
+ * In non-production environments without an ADMIN_TOKEN configured we allow
+ * dev convenience access so engineers can hit the dashboard locally.
  */
-function checkAdmin(req: Request, res: Response): boolean {
-  const adminToken = process.env.ADMIN_TOKEN;
-  if (!adminToken) {
-    if (process.env.NODE_ENV === "production") {
-      res.status(404).json({ error: "not found" });
-      return false;
-    }
+async function checkAdmin(req: Request, res: Response): Promise<boolean> {
+  const ctx = await getAdminContext(req);
+  if (ctx.isAdmin) return true;
+  if (
+    process.env["NODE_ENV"] !== "production" &&
+    !process.env["ADMIN_TOKEN"]
+  ) {
     return true;
   }
-  if (req.header("x-admin-token") !== adminToken) {
-    res.status(401).json({ error: "unauthorized" });
-    return false;
-  }
-  return true;
+  res.status(404).json({ error: "not found" });
+  return false;
 }
 
+/**
+ * Lightweight identity probe — clients hit this to determine whether the
+ * currently signed-in user has admin privileges (so the mobile app can show
+ * or hide the Admin Dashboard menu). Always 200 with `{ isAdmin, email }`.
+ */
+router.get("/admin/me", async (req, res) => {
+  const ctx = await getAdminContext(req);
+  res.json({ isAdmin: ctx.isAdmin, email: ctx.email, via: ctx.via });
+});
+
 // Read-only observability endpoint. Counts only — no PII payloads.
-// Intended for development/debugging; in production you'd gate this behind
-// an admin token or remove it entirely.
-// Token gate: when ADMIN_TOKEN is set, require `x-admin-token` header to match.
-// When unset, the route is disabled in production-like environments and returns 404.
 router.get("/admin/stats", async (req, res) => {
-  if (!checkAdmin(req, res)) return;
+  if (!(await checkAdmin(req, res))) return;
   try {
     const [devices] = await db
       .select({ n: sql<number>`count(*)::int` })
@@ -79,31 +85,16 @@ router.get("/admin/stats", async (req, res) => {
 });
 
 /**
- * Verifier operations dashboard (JSON only — no in-app UI yet).
- *
- * Aggregates the source-reputation table (which the Verifier writes to on
- * every pass/reject) plus a quick host-frequency scan over the dedup table
- * so we can spot which domains dominate KeyP's recent output.
- *
- * Response shape:
- *   {
- *     overall: { passRate, avgConfidence, totalChecked },
- *     topPassHosts: [{ host, passes, rejects, passRate, avgConfidence }],
- *     topRejectHosts: [...],
- *     deadUrl: { blacklistSize, recentDeadHosts: [...] },
- *     recentSeenHosts: [{ host, count }],
- *   }
+ * Verifier operations dashboard. See route body for response shape.
  */
 router.get("/admin/verifier-stats", async (req, res) => {
-  if (!checkAdmin(req, res)) return;
+  if (!(await checkAdmin(req, res))) return;
   try {
     const limit = Math.max(
       1,
-      Math.min(50, parseInt(String(req.query.limit ?? ""), 10) || 20),
+      Math.min(50, parseInt(String(req.query["limit"] ?? ""), 10) || 20),
     );
 
-    // Aggregate over the global reputation row (deviceId = "__global__") —
-    // these are the system-wide Verifier outcomes accumulated across users.
     const rows = await db
       .select({
         host: sourceReputationTable.host,
@@ -145,8 +136,6 @@ router.get("/admin/verifier-stats", async (req, res) => {
       };
     });
 
-    // Sort by activity volume to pick the most informative top-N — sorting
-    // by raw passRate would surface 1-of-1 noise hosts at the top.
     const topPassHosts = [...enriched]
       .filter((r) => r.passes >= 2)
       .sort((a, b) => b.passes - a.passes || b.passRate - a.passRate)
@@ -156,8 +145,6 @@ router.get("/admin/verifier-stats", async (req, res) => {
       .sort((a, b) => b.rejects - a.rejects || a.passRate - b.passRate)
       .slice(0, limit);
 
-    // Recent dedup activity by host — derived from seenAlertsTable URLs by
-    // extracting the host at query time (no host column on the table).
     const seenRows = await db
       .select({
         url: seenAlertsTable.url,
@@ -173,7 +160,7 @@ router.get("/admin/verifier-stats", async (req, res) => {
         const host = new URL(r.url).host;
         seenHostCounts.set(host, (seenHostCounts.get(host) ?? 0) + 1);
       } catch {
-        // skip invalid URL
+        // skip
       }
     }
     const recentSeenHosts = Array.from(seenHostCounts.entries())
@@ -181,7 +168,6 @@ router.get("/admin/verifier-stats", async (req, res) => {
       .sort((a, b) => b.count - a.count)
       .slice(0, limit);
 
-    // Dead-URL summary
     const deadEntries = await getRecentBlacklistedEntries(limit);
     const deadHostCounts = new Map<string, number>();
     for (const e of deadEntries) {

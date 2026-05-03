@@ -655,6 +655,41 @@ export const STRINGS: Record<string, Record<Language, string>> = {
   'auth.verify.btn': { ko: '인증하기', en: 'Verify' },
   'auth.verify.resend': { ko: '코드 다시 받기', en: 'Resend code' },
 
+  // ─── Admin dashboard ───────────────────────────────────────────────
+  'profile.section.admin': { ko: '관리자', en: 'Admin' },
+  'profile.item.adminDashboard': { ko: '관리자 대시보드', en: 'Admin dashboard' },
+  'profile.admin.unlimitedBadge': { ko: '무제한', en: 'Unlimited' },
+  'admin.title': { ko: '관리자 대시보드', en: 'Admin dashboard' },
+  'admin.subtitle': {
+    ko: '시스템 현황 + Verifier 운영 통계',
+    en: 'System overview + Verifier ops stats',
+  },
+  'admin.refresh': { ko: '새로고침', en: 'Refresh' },
+  'admin.notAuthorized.title': { ko: '권한이 없습니다', en: 'Not authorized' },
+  'admin.notAuthorized.body': {
+    ko: '이 페이지는 관리자 계정에서만 열람할 수 있어요.',
+    en: 'This page is only available to admin accounts.',
+  },
+  'admin.section.system': { ko: '시스템 현황', en: 'System overview' },
+  'admin.section.verifier': { ko: 'Verifier 통계', en: 'Verifier stats' },
+  'admin.section.topHosts': { ko: '상위 통과 도메인', en: 'Top passing hosts' },
+  'admin.section.rejectHosts': { ko: '상위 거절 도메인', en: 'Top rejected hosts' },
+  'admin.section.deadHosts': { ko: '데드 URL 도메인', en: 'Dead-URL hosts' },
+  'admin.stat.devices': { ko: '디바이스', en: 'Devices' },
+  'admin.stat.interests': { ko: '관심사', en: 'Interests' },
+  'admin.stat.alerts': { ko: '본 알림', en: 'Seen alerts' },
+  'admin.stat.blacklist': { ko: '블랙리스트', en: 'Blacklist' },
+  'admin.stat.passRate': { ko: '통과율', en: 'Pass rate' },
+  'admin.stat.avgConfidence': { ko: '평균 신뢰도', en: 'Avg confidence' },
+  'admin.stat.totalChecked': { ko: '검증 횟수', en: 'Total checked' },
+  'admin.you': { ko: '관리자로 로그인됨', en: 'Signed in as admin' },
+  'admin.unlimitedNote': {
+    ko: '관리자 계정은 무제한으로 키워드를 등록할 수 있어요.',
+    en: 'Admin accounts can register an unlimited number of keywords.',
+  },
+  'admin.empty': { ko: '데이터가 아직 없어요.', en: 'No data yet.' },
+  'admin.loadFailed': { ko: '불러오지 못했어요.', en: 'Failed to load.' },
+
   // ─── Pipeline fallback messages (shown in step list) ───────────────
   'pipeline.collectorFail': {
     ko: '서버 호출 실패 — 로컬 템플릿 사용',

@@ -5,6 +5,26 @@ import type {
   ParsedInterestResult,
 } from '@workspace/api-client-react';
 
+// ───────────────────────── Clerk auth-token plumbing ─────────────────────────
+// AuthContext registers Clerk's `getToken` here on mount so the API client
+// can attach `Authorization: Bearer <session>` to admin-gated endpoints
+// (and to /agents/generate-alerts so the server can detect admin status and
+// bypass the daily quota for admin users).
+type TokenProvider = () => Promise<string | null>;
+let clerkTokenProvider: TokenProvider | null = null;
+export function setClerkTokenProvider(fn: TokenProvider | null): void {
+  clerkTokenProvider = fn;
+}
+async function authHeaders(): Promise<Record<string, string>> {
+  if (!clerkTokenProvider) return {};
+  try {
+    const tok = await clerkTokenProvider();
+    return tok ? { Authorization: `Bearer ${tok}` } : {};
+  } catch {
+    return {};
+  }
+}
+
 function getApiBase(): string {
   const domain =
     process.env.EXPO_PUBLIC_DOMAIN ||
@@ -178,9 +198,11 @@ export async function callGenerateAlerts(
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 90000);
   try {
+    const auth = await authHeaders();
     const res = await fetch(`${base}/agents/generate-alerts`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...auth },
+      credentials: 'include',
       body: JSON.stringify({
         spec,
         count,
@@ -407,6 +429,83 @@ export async function callBoost(args: {
   });
   // 403/404 still carry a meaningful body (quota_exceeded etc.) — surface it.
   return (await res.json()) as Awaited<ReturnType<typeof callBoost>>;
+}
+
+// ───────────────────────── Admin dashboard ─────────────────────────
+
+export interface AdminMe {
+  isAdmin: boolean;
+  email: string | null;
+  via: 'token' | 'clerk' | 'none';
+}
+
+export async function callAdminMe(): Promise<AdminMe> {
+  const base = getApiBase();
+  if (!base) return { isAdmin: false, email: null, via: 'none' };
+  try {
+    const auth = await authHeaders();
+    const res = await fetch(`${base}/admin/me`, {
+      headers: { ...auth },
+      credentials: 'include',
+    });
+    if (!res.ok) return { isAdmin: false, email: null, via: 'none' };
+    return (await res.json()) as AdminMe;
+  } catch {
+    return { isAdmin: false, email: null, via: 'none' };
+  }
+}
+
+export interface AdminStats {
+  pushDevices: number;
+  trackedInterests: number;
+  seenAlerts: number;
+  blacklist: { size: number; recent: { host: string; reason: string; ts: number }[] };
+}
+
+export async function callAdminStats(): Promise<AdminStats | null> {
+  const base = getApiBase();
+  if (!base) return null;
+  try {
+    const auth = await authHeaders();
+    const res = await fetch(`${base}/admin/stats`, {
+      headers: { ...auth },
+      credentials: 'include',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AdminStats;
+  } catch {
+    return null;
+  }
+}
+
+export interface AdminVerifierStats {
+  overall: {
+    passRate: number;
+    avgConfidence: number;
+    totalChecked: number;
+    totalPass: number;
+    totalReject: number;
+  };
+  topPassHosts: { host: string; passes: number; rejects: number; passRate: number; avgConfidence: number }[];
+  topRejectHosts: { host: string; passes: number; rejects: number; passRate: number; avgConfidence: number }[];
+  deadUrl: { blacklistSize: number; recentDeadHosts: { host: string; count: number }[] };
+  recentSeenHosts: { host: string; count: number }[];
+}
+
+export async function callAdminVerifierStats(): Promise<AdminVerifierStats | null> {
+  const base = getApiBase();
+  if (!base) return null;
+  try {
+    const auth = await authHeaders();
+    const res = await fetch(`${base}/admin/verifier-stats`, {
+      headers: { ...auth },
+      credentials: 'include',
+    });
+    if (!res.ok) return null;
+    return (await res.json()) as AdminVerifierStats;
+  } catch {
+    return null;
+  }
 }
 
 export type { AlertData, InterestSpecData, ParsedInterestResult, GeneratedAlertsResult };

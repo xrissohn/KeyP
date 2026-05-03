@@ -40,6 +40,8 @@ import {
 } from "../services/feedbackProfile";
 import { sniffTrends } from "../services/trendSniffer";
 import { reserveQuota } from "../services/rateLimit";
+import { getAdminContext } from "../lib/adminAuth";
+import { isInternalLoopback } from "../lib/internalAuth";
 import { pickVariant } from "../services/experiments";
 import { db, sourcePreferencesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
@@ -689,9 +691,18 @@ router.post("/agents/generate-alerts", async (req, res) => {
   const interestId = interestIdRaw.length > 0 && interestIdRaw.length <= 128 ? interestIdRaw : null;
 
   // ─── Rate limit gate (per-device daily quota) ─────────────────────────
-  // Loopback / poller calls (no deviceId) bypass quota — they're already
-  // cost-controlled by plan-aware polling cadence on the server.
-  const quota = await reserveQuota(deviceId, plan);
+  // Trusted in-process loopback (verified via per-boot internal token) bypass
+  // quota — they're already cost-controlled by plan-aware polling cadence.
+  // Admin Clerk users (e.g. xrissohn@xrisp.com) bypass quota entirely so they
+  // can register unlimited keywords during ops + demos. External callers MUST
+  // supply a deviceId; reserveQuota refuses to allocate without one to close
+  // the abuse path where omitting deviceId would skip the daily quota.
+  const adminCtx = await getAdminContext(req);
+  const isInternal = isInternalLoopback(req);
+  const quota = await reserveQuota(deviceId, plan, {
+    isAdmin: adminCtx.isAdmin,
+    isInternal,
+  });
   if (!quota.allowed) {
     res.status(429).json({
       error: "quota_exceeded",
