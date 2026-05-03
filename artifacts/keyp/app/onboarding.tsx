@@ -80,7 +80,7 @@ export default function Onboarding() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <View style={[styles.topBar, { paddingTop: topInset + 12 }]}>
         <Image
-          source={require('@/assets/images/keyp-wordmark.png')}
+          source={require('@/assets/images/keyp-icon-mark.png')}
           style={styles.wordmark}
           resizeMode="contain"
           accessibilityLabel="KeyP"
@@ -159,8 +159,9 @@ const styles = StyleSheet.create({
     paddingBottom: 8,
   },
   wordmark: {
-    width: 88,
-    height: 28,
+    width: 36,
+    height: 36,
+    borderRadius: 9,
   },
   skip: {
     fontSize: 14,

@@ -3,6 +3,7 @@ import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
   FlatList,
+  Image,
   Platform,
   RefreshControl,
   StyleSheet,
@@ -24,6 +25,12 @@ export default function FeedScreen() {
   const { alerts, interests } = useApp();
   const [selectedInterest, setSelectedInterest] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const listRef = React.useRef<FlatList>(null);
+
+  const handleLogoPress = () => {
+    setSelectedInterest(null);
+    listRef.current?.scrollToOffset({ offset: 0, animated: true });
+  };
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -41,12 +48,24 @@ export default function FeedScreen() {
   const renderHeader = () => (
     <View>
       <View style={[styles.topBar, { paddingTop: topInset + 8 }]}>
-        <View>
-          <Text style={[styles.appName, { color: colors.primary }]}>KeyP</Text>
-          <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-            실시간 관심사 알림
-          </Text>
-        </View>
+        <TouchableOpacity
+          onPress={handleLogoPress}
+          activeOpacity={0.7}
+          hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+          accessibilityRole="button"
+          accessibilityLabel="홈으로"
+        >
+          <View style={styles.logoRow}>
+            <Image
+              source={require('@/assets/images/keyp-icon-mark.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
+            <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
+              실시간 관심사 알림
+            </Text>
+          </View>
+        </TouchableOpacity>
         <TouchableOpacity
           style={[styles.savedBtn, { backgroundColor: colors.secondary }]}
           onPress={() => router.push('/saved')}
@@ -97,6 +116,7 @@ export default function FeedScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <FlatList
+        ref={listRef}
         data={filteredAlerts}
         keyExtractor={(item) => item.id}
         renderItem={({ item }) => <AlertCard alert={item} />}
@@ -140,6 +160,16 @@ const styles = StyleSheet.create({
   appName: {
     fontSize: 26,
     fontFamily: 'Inter_700Bold',
+  },
+  logoRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  logoImg: {
+    width: 36,
+    height: 36,
+    borderRadius: 9,
   },
   subtitle: {
     fontSize: 12,
