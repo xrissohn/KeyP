@@ -562,12 +562,71 @@ async function main() {
   console.log("Updating manifests and creating landing page...");
   updateManifests(manifests, timestamp, baseUrl, assetsByHash);
 
-  console.log("Build complete! Deploy to:", baseUrl);
-
   if (metroProcess) {
+    console.log("Stopping Metro before web export...");
     metroProcess.kill();
+    metroProcess = null;
+    await new Promise((r) => setTimeout(r, 1500));
   }
+
+  await exportWebBundle(baseUrl);
+
+  console.log("Build complete! Deploy to:", baseUrl);
   process.exit(0);
+}
+
+async function exportWebBundle(baseUrl) {
+  const webOutDir = path.join(projectRoot, "static-build", "web");
+  console.log("Exporting web bundle to", webOutDir);
+
+  const env = {
+    ...process.env,
+    EXPO_PUBLIC_DOMAIN: baseUrl.replace(/^https?:\/\//, ""),
+    EXPO_PUBLIC_REPL_ID: getExpoPublicReplId() || "",
+    EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY: process.env.CLERK_PUBLISHABLE_KEY || "",
+    EXPO_PUBLIC_CLERK_PROXY_URL: process.env.CLERK_PROXY_URL
+      ? `${baseUrl}${process.env.CLERK_PROXY_URL}`
+      : "",
+  };
+
+  await new Promise((resolve, reject) => {
+    const proc = spawn(
+      "pnpm",
+      [
+        "exec",
+        "expo",
+        "export",
+        "--platform",
+        "web",
+        "--output-dir",
+        "static-build/web",
+        "--clear",
+      ],
+      {
+        cwd: projectRoot,
+        env,
+        stdio: ["ignore", "pipe", "pipe"],
+      },
+    );
+    proc.stdout?.on("data", (d) => {
+      const out = d.toString().trim();
+      if (out) console.log(`[web-export] ${out}`);
+    });
+    proc.stderr?.on("data", (d) => {
+      const out = d.toString().trim();
+      if (out) console.error(`[web-export] ${out}`);
+    });
+    proc.on("exit", (code) => {
+      if (code === 0) {
+        console.log("Web export complete");
+        resolve();
+      } else {
+        reject(new Error(`expo export web failed with code ${code}`));
+      }
+    });
+  }).catch((err) => {
+    console.error("Web export failed (continuing):", err.message);
+  });
 }
 
 main().catch((error) => {

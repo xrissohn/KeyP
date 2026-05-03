@@ -24,7 +24,17 @@
       }
     },
     "web": {
-      "favicon": "./assets/images/keyp-logo.png"
+      "favicon": "./assets/images/keyp-logo.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "KeyP",
+      "shortName": "KeyP",
+      "lang": "ko",
+      "themeColor": "#5B7FFF",
+      "backgroundColor": "#ffffff",
+      "display": "standalone",
+      "orientation": "portrait",
+      "description": "관심사를 등록하고 실시간 속보를 가장 먼저 받아보세요."
     },
     "plugins": [
       [

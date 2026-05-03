@@ -57,6 +57,53 @@ if (typeof window !== "undefined" && !(window as { __keypFetchGuardInstalled?: b
   });
 }
 
+// PWA bootstrap (web only). Runs once per session in dev and prod, since
+// Expo's `+html.tsx` is only used during static export and the dev shell
+// is otherwise minimal.
+if (
+  typeof window !== "undefined" &&
+  typeof document !== "undefined" &&
+  !(window as { __keypPwaInstalled?: boolean }).__keypPwaInstalled
+) {
+  (window as { __keypPwaInstalled?: boolean }).__keypPwaInstalled = true;
+  const head = document.head;
+  const ensureLink = (rel: string, href: string, type?: string) => {
+    if (head.querySelector(`link[rel="${rel}"][href="${href}"]`)) return;
+    const link = document.createElement("link");
+    link.rel = rel;
+    link.href = href;
+    if (type) link.type = type;
+    head.appendChild(link);
+  };
+  const ensureMeta = (name: string, content: string) => {
+    let meta = head.querySelector(
+      `meta[name="${name}"]`,
+    ) as HTMLMetaElement | null;
+    if (!meta) {
+      meta = document.createElement("meta");
+      meta.name = name;
+      head.appendChild(meta);
+    }
+    meta.content = content;
+  };
+  ensureLink("manifest", "/manifest.webmanifest");
+  ensureLink("icon", "/icon-mark.png", "image/png");
+  ensureLink("apple-touch-icon", "/icon.png");
+  ensureMeta("theme-color", "#5B7FFF");
+  ensureMeta("apple-mobile-web-app-capable", "yes");
+  ensureMeta("mobile-web-app-capable", "yes");
+  ensureMeta("apple-mobile-web-app-title", "KeyP");
+  ensureMeta(
+    "description",
+    "관심사를 등록하고 실시간 속보를 가장 먼저 받아보세요.",
+  );
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("/sw.js").catch(() => undefined);
+    });
+  }
+}
+
 // React Native safety net. RN routes unhandled rejections through the
 // `promise/setimmediate` polyfill — we tap it once so the LogBox doesn't
 // pop a "Uncaught Error: signal is aborted without reason" overlay every

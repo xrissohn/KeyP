@@ -1,0 +1,26 @@
+{
+  "name": "KeyP — 속보 알림",
+  "short_name": "KeyP",
+  "description": "관심사를 등록하고 실시간 속보를 가장 먼저 받아보세요.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#ffffff",
+  "theme_color": "#5B7FFF",
+  "lang": "ko",
+  "icons": [
+    {
+      "src": "/icon-mark.png",
+      "sizes": "206x206",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
