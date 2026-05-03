@@ -23,6 +23,15 @@ import {
   getRecentBlacklistedHosts,
 } from "../services/deadUrlBlacklist";
 import {
+  bumpReputation,
+  getReputationForHosts,
+  reputationScore,
+  formatReputationForPrompt,
+  classifyRejectReason,
+  hostFromUrl,
+  type ReputationLookup,
+} from "../services/sourceReputation";
+import {
   getProfile,
   scoreCandidate,
   topTokens,
@@ -239,6 +248,7 @@ async function pruneUnreachableCandidates<
 >(
   cands: T[],
   log: { info: (o: object, m: string) => void },
+  deviceId?: string | null,
 ): Promise<T[]> {
   if (cands.length === 0) return cands;
   // Pre-filter using the persistent dead-URL blacklist so we never spend
@@ -261,6 +271,20 @@ async function pruneUnreachableCandidates<
   );
   const kept = checks.filter((x) => x.ok).map((x) => x.c);
   const dropped = checks.filter((x) => !x.ok);
+  // Bump per-host deadCount reputation so future Selector pre-rank can
+  // down-weight repeat offenders (survives interest deletion).
+  const deadHostCounts = new Map<string, number>();
+  for (const d of dropped) {
+    const h = hostFromUrl(d.url);
+    if (h) deadHostCounts.set(h, (deadHostCounts.get(h) ?? 0) + 1);
+  }
+  for (const b of droppedFromBlacklist) {
+    const h = hostFromUrl(b.url);
+    if (h) deadHostCounts.set(h, (deadHostCounts.get(h) ?? 0) + 1);
+  }
+  for (const [host, count] of deadHostCounts) {
+    void bumpReputation(host, deviceId ?? null, { deadCount: count });
+  }
   if (dropped.length > 0 || droppedFromBlacklist.length > 0) {
     log.info(
       {
@@ -984,7 +1008,7 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
   // ============================================================
   if (candidates.length > 0) {
     const beforeUrlGate = candidates.length;
-    candidates = await pruneUnreachableCandidates(candidates, req.log);
+    candidates = await pruneUnreachableCandidates(candidates, req.log, deviceId);
     if (candidates.length !== beforeUrlGate) {
       steps.push({
         agent: "Collector",
@@ -1035,6 +1059,19 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
   }
 
   // ============================================================
+  // Source reputation — load per-host stats (global + per-device) so
+  // BOTH the Selector pre-rank and the Verifier prompt can use them.
+  // Survives interest deletion: keyed by host, not interestId.
+  // ============================================================
+  const candidateHosts = candidates
+    .map((c) => hostFromUrl(c.url))
+    .filter((h): h is string => !!h);
+  const reputationByHost: Map<string, ReputationLookup> =
+    candidateHosts.length > 0
+      ? await getReputationForHosts(candidateHosts, deviceId ?? null)
+      : new Map();
+
+  // ============================================================
   // Selector — feedback-driven prefilter (runs AFTER URL gate so we
   // never spend Verifier tokens on items profiling will discard).
   // ============================================================
@@ -1052,23 +1089,25 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
     if (candidates.length > KEEP_N) {
       const selectorStart = Date.now();
       const before = candidates.length;
-      const scored = candidates.map((c) => ({
-        c,
-        score: scoreCandidate(profile!, {
+      const scored = candidates.map((c) => {
+        const baseScore = scoreCandidate(profile!, {
           title: c.title,
           summary: c.summary,
           sourceType: c.sourceType,
           sourceName: c.sourceName,
           tags: c.tags,
-        }),
-      }));
+        });
+        const host = hostFromUrl(c.url);
+        const repBoost = host ? reputationScore(reputationByHost.get(host)) : 0;
+        return { c, score: baseScore + repBoost };
+      });
       scored.sort((a, b) => b.score - a.score);
       candidates = scored.slice(0, KEEP_N).map((x) => x.c);
       const after = candidates.length;
       steps.push({
         agent: "Selector",
         status: "success",
-        message: `피드백 기반 사전 선별 ${before}→${after}건`,
+        message: `피드백+소스평판 사전 선별 ${before}→${after}건`,
         durationMs: Date.now() - selectorStart,
       });
     }
@@ -1163,11 +1202,19 @@ ${
 }
 Candidates (${candidates.length}):
 ${candidates
-  .map(
-    (c, i) =>
-      `${i + 1}. [${c.sourceType}] ${c.title}\n   ${c.summary}\n   url=${c.url ?? "n/a"}, publish=${c.minutesAgo}분 전, event=${c.eventMinutesAgo}분 전`,
-  )
+  .map((c, i) => {
+    const host = hostFromUrl(c.url);
+    const rep = host ? formatReputationForPrompt(reputationByHost.get(host)) : "";
+    const repLine = rep ? `\n   소스평판(${host}): ${rep}` : "";
+    return `${i + 1}. [${c.sourceType}] ${c.title}\n   ${c.summary}\n   url=${c.url ?? "n/a"}, publish=${c.minutesAgo}분 전, event=${c.eventMinutesAgo}분 전${repLine}`;
+  })
   .join("\n\n")}
+
+소스평판 활용 지침: 위 "소스평판" 라인은 같은 도메인이 과거 KeyP에서 어떻게 평가받았는지의 누적 통계다.
+- like/pass/avgConf가 높으면 confidence를 약간 가산.
+- dislike/stale/dup/dead가 높으면 confidence를 감산.
+- 단, 이 신호는 보조 가중치일 뿐 — 객관적 신뢰도/관련성/최신성보다 우선해서는 안 된다.
+- ⚠️ 절대 이 "소스평판" 메타데이터를 응답 JSON의 title/summary/reason에 그대로 포함시키지 말 것 (의사결정용 내부 신호).
 
 Return exactly ${candidates.length} verifications in the same order.`,
           },
@@ -1275,6 +1322,60 @@ Return exactly ${candidates.length} verifications in the same order.`,
         .filter((x) => x !== null);
       if (rejected.length > 0) {
         req.log.warn({ rejected }, "[verifier] rejected candidates");
+      }
+      // ── Persist per-host reputation from this Verifier pass ──
+      // Aggregates: pass/reject counts, classified reject reasons
+      // (stale/offTopic/dup), and avg confidence per host. Survives
+      // interest deletion. Both global and per-device rows are bumped.
+      const repBumps = new Map<
+        string,
+        {
+          verifierPassCount: number;
+          verifierRejectCount: number;
+          staleRejectCount: number;
+          offTopicRejectCount: number;
+          dupRejectCount: number;
+          confidenceSum: number;
+          confidenceCount: number;
+        }
+      >();
+      for (let i = 0; i < candidates.length; i++) {
+        const host = hostFromUrl(candidates[i]?.url);
+        if (!host) continue;
+        const v =
+          typeof verifications[i] === "object" && verifications[i] !== null
+            ? (verifications[i] as Record<string, unknown>)
+            : {};
+        const conf = Math.min(100, Math.max(0, Math.round(Number(v.confidence) || 0)));
+        const include = v.include !== false && conf >= 50;
+        const slot = repBumps.get(host) ?? {
+          verifierPassCount: 0,
+          verifierRejectCount: 0,
+          staleRejectCount: 0,
+          offTopicRejectCount: 0,
+          dupRejectCount: 0,
+          confidenceSum: 0,
+          confidenceCount: 0,
+        };
+        if (conf > 0) {
+          slot.confidenceSum += conf;
+          slot.confidenceCount += 1;
+        }
+        if (include) {
+          slot.verifierPassCount += 1;
+        } else {
+          slot.verifierRejectCount += 1;
+          const cls = classifyRejectReason(
+            typeof v.reason === "string" ? v.reason : null,
+          );
+          if (cls === "stale") slot.staleRejectCount += 1;
+          else if (cls === "offTopic") slot.offTopicRejectCount += 1;
+          else if (cls === "dup") slot.dupRejectCount += 1;
+        }
+        repBumps.set(host, slot);
+      }
+      for (const [host, delta] of repBumps) {
+        void bumpReputation(host, deviceId ?? null, delta);
       }
       steps.push({
         agent: "Verifier",

@@ -16,6 +16,7 @@ import {
 } from "@workspace/api-zod";
 import { sendExpoPush, isExpoPushToken } from "../services/expoPush";
 import { recordFeedback, type FeedbackKind } from "../services/feedbackProfile";
+import { bumpReputation, hostFromUrl } from "../services/sourceReputation";
 import {
   setPlanForDevice,
   tryBoost,
@@ -249,8 +250,23 @@ router.post("/push/feedback", async (req, res) => {
     feedback,
     ts: Date.now(),
   });
+  // Persist per-host reputation so source quality survives interest deletion.
+  const sourceUrl =
+    typeof body["sourceUrl"] === "string" ? (body["sourceUrl"] as string) : undefined;
+  const host = hostFromUrl(sourceUrl);
+  if (host) {
+    const delta =
+      feedback === "like"
+        ? { likes: 1 }
+        : feedback === "more"
+        ? { moreCount: 1 }
+        : feedback === "dislike"
+        ? { dislikes: 1 }
+        : { hideCount: 1 };
+    await bumpReputation(host, deviceId, delta);
+  }
   req.log.info(
-    { feedback, titlePreview: title.slice(0, 60) },
+    { feedback, titlePreview: title.slice(0, 60), host },
     "[feedback] recorded",
   );
   res.json({ ok: true });
