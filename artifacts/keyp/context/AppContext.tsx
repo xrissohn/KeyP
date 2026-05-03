@@ -10,6 +10,7 @@ import React, {
 import { MOCK_ALERTS, MOCK_INTERESTS, MOCK_MATCHES } from '@/data/mockData';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
+import { initNotifications, notifyFreshAlerts } from '@/lib/notifications';
 import type { AgentStep } from '@workspace/api-client-react';
 import type { Alert, FeedbackType, Interest, InterestSpec, Match } from '@/types';
 
@@ -68,11 +69,14 @@ interface AppContextType {
 
 const AppContext = createContext<AppContextType | null>(null);
 
+// v2: bumped to discard legacy mock-seeded interests/alerts (which contained
+// dummy bookmarks with placeholder URLs). Every user starts fresh; the only
+// data is what the agent pipeline collects in real time.
 const STORAGE_KEYS = {
-  INTERESTS: '@keyp/interests',
-  ALERTS: '@keyp/alerts',
-  MATCHES: '@keyp/matches',
-  AUTO_COLLECT: '@keyp/autoCollect',
+  INTERESTS: '@keyp/v2/interests',
+  ALERTS: '@keyp/v2/alerts',
+  MATCHES: '@keyp/v2/matches',
+  AUTO_COLLECT: '@keyp/v2/autoCollect',
 };
 
 // Real-time defaults: every 2 minutes the background collector sweeps every
@@ -137,6 +141,9 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     loadFromStorage();
+    // Request notification permission early so the very first new alert can
+    // surface as a push without an in-flight permission prompt delay.
+    initNotifications().catch(() => {});
   }, []);
 
   // Single-writer persistence: each state slice persists whenever it changes
@@ -189,6 +196,14 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const loadFromStorage = async () => {
     try {
+      // One-time cleanup of legacy v1 keys (which held mock-seeded interests
+      // + dummy bookmarks). Fire-and-forget; safe to attempt on every boot.
+      AsyncStorage.multiRemove([
+        '@keyp/interests',
+        '@keyp/alerts',
+        '@keyp/matches',
+        '@keyp/autoCollect',
+      ]).catch(() => {});
       const [iStr, aStr, mStr, autoStr] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.INTERESTS),
         AsyncStorage.getItem(STORAGE_KEYS.ALERTS),
@@ -253,7 +268,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
         setInterests((prev) => [newInterest, ...prev]);
 
-        const { alerts: newAlerts, steps: collectorSteps } = await generateAlertsForSpec(spec, 3);
+        // Seed: fetch ONE most-recent past item so the user sees the very
+        // latest known signal for this interest immediately. Going forward,
+        // the background collector adds only genuinely new items as they
+        // appear, and a push notification fires for each one.
+        const { alerts: newAlerts, steps: collectorSteps } = await generateAlertsForSpec(spec, 1);
         onSteps?.([...plannerSteps, ...collectorSteps]);
 
         const nowIso = new Date().toISOString();
@@ -270,6 +289,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               : i
           )
         );
+
+        // Fire a push for the seed alert too — first signal the user sees
+        // for this interest. Real-time sweeps will follow as new info appears.
+        if (newAlerts.length > 0) {
+          notifyFreshAlerts(newAlerts).catch(() => {});
+        }
 
         return { spec, steps: [...plannerSteps, ...collectorSteps] };
       } finally {
@@ -442,6 +467,11 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
               : i
           )
         );
+
+        // Push notification for the freshest new alert (skips when 0 new).
+        if (fresh.length > 0) {
+          notifyFreshAlerts(fresh).catch(() => {});
+        }
 
         return {
           interestId,

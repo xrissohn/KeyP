@@ -67,7 +67,19 @@ See the `pnpm-workspace` skill for workspace structure, TypeScript setup, and pa
 - New alerts created by realtime sweeps are stamped `createdAt: now`, so the existing `getNewAlertCount`/NEW-badge logic surfaces them automatically.
 - Settings persist to AsyncStorage under `@keyp/autoCollect`.
 
-#### Saved-알림 dummy → real bookmark migration
+#### Fresh-start design + push notifications (v2)
+- **Empty seed**: `data/mockData.ts` exports `MOCK_INTERESTS=[]`, `MOCK_ALERTS=[]`, `MOCK_MATCHES=[]`. New users start with zero data; everything is collected live.
+- **Storage version bump**: `STORAGE_KEYS` now use `@keyp/v2/*` so legacy v1 dummy data is discarded. `loadFromStorage` also `multiRemove`s the old `@keyp/{interests,alerts,matches,autoCollect}` keys on every boot for one-time hygiene.
+- **Single-seed semantics**: `addInterest` calls `generateAlertsForSpec(spec, 1)` so registering an interest fetches exactly ONE most-recent past relevant item as the seed alert. All subsequent alerts come from the realtime sweep loop and are de-duped before insertion.
+- **Push notifications** (`lib/notifications.ts`):
+  - Native: dynamic `import('expo-notifications')` so web bundles never resolve native-only code; `setNotificationHandler` shows banners/list/sound/badge in foreground; Android `setNotificationChannelAsync('keyp-default', { importance: HIGH })` is required for OEM reliability and `scheduleNotificationAsync` passes `{ channelId: 'keyp-default' }` on Android.
+  - Web fallback: browser `Notification` API; permission requested once per session.
+  - `notifyFreshAlerts(fresh[])` picks the freshest by `createdAt` to avoid spam when a sweep returns multiple.
+  - `initNotifications()` is invoked once from the `AppProvider` mount `useEffect`.
+  - Hooked from `addInterest` (seed alert) and from `refreshInterest` after dedup (`fresh.length > 0`).
+- **Limitation (local-only push)**: notifications are scheduled locally; they fire reliably while the app is foreground or recently backgrounded, but not when the device/app is fully terminated. True remote push (Expo push token + server-side trigger) is a follow-up if delivery while terminated becomes a requirement.
+
+#### Saved-알림 dummy → real bookmark migration (legacy, mostly dormant)
 - `data/mockData.ts` seeds two saved alerts (`alert_002`, `alert_005`) with placeholder URLs (e.g. `https://youtube.com`, `https://example.com`) so the **저장한 알림** screen isn't empty on first launch.
 - `lib/utils/url.ts` `isPlaceholderUrl()` flags bare-domain URLs from a known set as placeholders; real Perplexity URLs (with paths) are NOT flagged.
 - `AppContext` migrates these dummy bookmarks onto genuine fetched alerts via three coordinated layers (all use functional `setAlerts(prev => ...)` so React serializes against latest state):
