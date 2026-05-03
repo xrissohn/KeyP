@@ -125,7 +125,9 @@ export async function generateAlertsForSpec(
   existingAlertSummaries: { title: string; summary: string }[] = [],
   deviceId?: string,
   plan?: 'free' | 'basic' | 'pro' | 'power',
-  userLanguage?: 'ko' | 'en'
+  userLanguage?: 'ko' | 'en',
+  /** Freshness floor — see callGenerateAlerts for semantics. */
+  latestKnownEventAt?: string,
 ): Promise<GenerateAlertsWithStepsResult> {
   try {
     const result = await callGenerateAlerts(
@@ -148,7 +150,8 @@ export async function generateAlertsForSpec(
       existingAlertSummaries,
       deviceId,
       plan,
-      userLanguage
+      userLanguage,
+      latestKnownEventAt,
     );
     const alerts = (result.alerts ?? []).map((a): Alert => {
       const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)
@@ -180,6 +183,12 @@ export async function generateAlertsForSpec(
         isSaved: false,
         createdAt: new Date(
           Date.now() - (a.minutesAgo ?? 30) * 60 * 1000
+        ).toISOString(),
+        // Stamp the absolute event time NOW (while we still know "now"). This
+        // is the value the freshness floor compares against on subsequent
+        // sweeps — relative `eventMinutesAgo` would drift as time passes.
+        eventOccurredAt: new Date(
+          Date.now() - (a.eventMinutesAgo ?? a.minutesAgo ?? 30) * 60 * 1000
         ).toISOString(),
       };
     });

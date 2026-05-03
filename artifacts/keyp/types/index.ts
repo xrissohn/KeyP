@@ -86,6 +86,15 @@ export interface Alert {
   isSaved: boolean;
   feedback?: FeedbackType;
   createdAt: string;
+  /**
+   * ISO timestamp of when the underlying event/news ACTUALLY OCCURRED in the
+   * real world (not when we collected it, not when the article was
+   * republished). Computed at receive time as `now - eventMinutesAgo`.
+   * This is the freshness floor: KeyP's prime directive is that no future
+   * alert may surface for the same interest with an older eventOccurredAt
+   * than any alert already delivered.
+   */
+  eventOccurredAt?: string;
   /** ISO timestamp when the user opened/marked this individual alert as read. */
   readAt?: string;
   isMatch?: boolean;

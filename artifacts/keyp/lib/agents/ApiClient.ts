@@ -139,7 +139,15 @@ export async function callGenerateAlerts(
   existingAlertSummaries: { title: string; summary: string }[] = [],
   deviceId?: string,
   plan?: PlanTier,
-  userLanguage?: 'ko' | 'en'
+  userLanguage?: 'ko' | 'en',
+  /**
+   * ISO timestamp of the most-recent already-delivered alert's underlying
+   * event for this interest. Server uses it as a HARD freshness floor:
+   * any candidate whose underlying event happened earlier than this is
+   * rejected at multiple stages. Sniffed off raw body server-side (no
+   * codegen ripple) — see /agents/generate-alerts handler.
+   */
+  latestKnownEventAt?: string,
 ): Promise<GeneratedAlertsResult> {
   return postJson<GeneratedAlertsResult>(
     '/agents/generate-alerts',
@@ -150,6 +158,7 @@ export async function callGenerateAlerts(
       ...(deviceId ? { deviceId } : {}),
       ...(plan ? { plan } : {}),
       ...(userLanguage ? { userLanguage } : {}),
+      ...(latestKnownEventAt ? { latestKnownEventAt } : {}),
     },
     45000
   );

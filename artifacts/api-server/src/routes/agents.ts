@@ -598,6 +598,39 @@ router.post("/agents/generate-alerts", async (req, res) => {
     typeof rawBody["userLanguage"] === "string" ? (rawBody["userLanguage"] as string) : "ko";
   const userLanguage: "ko" | "en" =
     userLanguageRaw === "en" ? "en" : "ko";
+
+  // ─── Freshness floor (KeyP prime directive #2) ────────────────────────
+  // The client passes the ISO timestamp of the most recent event already
+  // delivered for this interest. Any candidate whose underlying event
+  // happened BEFORE this floor must NEVER be returned — not from the
+  // Collector, not from the Verifier, not from the seed-rescue path. We
+  // express the floor as a "max allowed eventMinutesAgo" because that's
+  // the unit the Collector and downstream filters work in.
+  const latestKnownEventAtRaw =
+    typeof rawBody["latestKnownEventAt"] === "string"
+      ? (rawBody["latestKnownEventAt"] as string)
+      : undefined;
+  const latestKnownEventMs = latestKnownEventAtRaw
+    ? Date.parse(latestKnownEventAtRaw)
+    : NaN;
+  if (latestKnownEventAtRaw && !Number.isFinite(latestKnownEventMs)) {
+    // Don't silently swallow garbage — surface it so we notice client bugs
+    // instead of mysteriously letting stale items through.
+    req.log.warn(
+      { latestKnownEventAtRaw },
+      "[freshness-floor] received unparseable latestKnownEventAt; floor disabled for this request",
+    );
+  }
+  // STRICT mode: NO slack. The user's directive is "절대" no time regression.
+  // If the LLM's `eventHoursAgo` estimate is noisy at the boundary, we'd
+  // rather lose one borderline-true item than admit one stale-event item.
+  // Equality is allowed (use `>` not `>=`) so that two items collected in
+  // the same sweep at the same event time don't filter each other out.
+  const maxAllowedEventMinutesAgo = Number.isFinite(latestKnownEventMs)
+    ? Math.max(0, Math.floor((Date.now() - latestKnownEventMs) / 60_000))
+    : Number.POSITIVE_INFINITY;
+  const hasFreshnessFloor = Number.isFinite(maxAllowedEventMinutesAgo);
+
   const steps: AgentStep[] = [];
 
   // ============================================================
@@ -675,7 +708,7 @@ Respond ONLY with strict JSON, no prose:
 }
 
 Hard rules:
-- NEVER return an empty alerts array. If no exact match exists in the listed channels, broaden to the most relevant adjacent public content on the same topic and return at least 1 real, dated finding with a real URL.
+- NEVER return an empty alerts array — UNLESS the FRESHNESS FLOOR below is in effect AND no item satisfies it (in that case an empty array is the correct, required answer; do NOT pad with older-event items to avoid empty state). For all other cases: if no exact match exists in the listed channels, broaden to the most relevant adjacent public content on the same topic and return at least 1 real, dated finding with a real URL.
 - Each item MUST be real public web content with a real URL — no placeholders, no "I cannot help with that", no apologies.
 - **URL INTEGRITY (CRITICAL)**: The "url" field MUST be a URL you actually retrieved from your web search results — copied verbatim from a real search hit. NEVER guess, fabricate, pattern-construct, shorten, or reconstruct URLs from a domain + plausible-looking slug. NEVER invent article IDs, dates in paths, or category segments. If you do not have an exact, working URL from a real search result, OMIT THAT ITEM ENTIRELY and find a different one. Items whose URL returns 404 will be discarded by a downstream reachability check, wasting the user's time — so it is much better to return one item with a verified URL than three items with guessed URLs. Prefer canonical homepage/article URLs over deep-linked search/preview URLs.
 - **Content-recency over republish-recency**: if a recently-published page is actually recapping a much older event/news/gossip, set eventHoursAgo to when the EVENT itself occurred (read the body — dates in the article, "X years ago", "in 2024", etc.). Strongly prefer items whose underlying event is genuinely recent over items merely republished today about old stories.
@@ -707,6 +740,13 @@ ${
     : knownItems
         .map((k, i) => `  ${i + 1}. ${k.title} — ${k.summary.slice(0, 160)}`)
         .join("\n")
+}
+
+${
+  hasFreshnessFloor
+    ? `🚨 FRESHNESS FLOOR (HARDEST RULE — KeyP's prime directive, OVERRIDES the "never return empty" rule):
+The user has ALREADY received an alert for an event that occurred ${maxAllowedEventMinutesAgo} minutes ago. You MUST NOT return ANY item whose underlying event (eventHoursAgo × 60) is OLDER than this — i.e. eventHoursAgo MUST be ≤ ${(maxAllowedEventMinutesAgo / 60).toFixed(2)}. Items that fail this rule are pure information garbage to this user and will be dropped downstream anyway, wasting the entire sweep. If your search surfaces only older-event content, RETURN AN EMPTY ARRAY — silence is strictly better than regressing in time, and an empty array IS the correct answer in that situation (the "never return empty" hard rule does NOT apply when this floor is in effect). Re-search with tighter recency filters (e.g. site:reddit.com new=, twitter "filter:replies" since:, news "past hour", YouTube upload date filter) until you find genuinely newer events, or return []. Do NOT lie about eventHoursAgo to satisfy the never-empty rule — honest empty beats dishonest stale.`
+    : "(this is the first alert for this interest — no freshness floor yet)"
 }
 
 Return up to ${requested} items, sorted with the most content-recent first (smallest eventHoursAgo first).`,
@@ -778,7 +818,10 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
           const backupDeadHostsBlock = backupDeadHosts.length > 0
             ? `\n\nKNOWN-DEAD HOSTS (avoid items hosted on these domains): ${backupDeadHosts.join(", ")}`
             : "";
-          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Search GLOBALLY across ALL languages — pick the most authoritative/fastest primary source regardless of source language; do NOT pre-translate. Return strict JSON only: {"alerts":[{"title":"<headline in source's native language>","summary":"<2-3 sentence factual summary in source's native language>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"originalLanguage":"<ko|en|ja|zh|es|fr|de|other>","tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}${backupDeadHostsBlock}`;
+          const freshnessBlock = hasFreshnessFloor
+            ? `\n\n🚨 FRESHNESS FLOOR (HARDEST RULE — overrides "never return empty"): The user already received an event from ${maxAllowedEventMinutesAgo} minutes ago. eventHoursAgo MUST be ≤ ${(maxAllowedEventMinutesAgo / 60).toFixed(2)}. Items that fail this rule are dropped downstream — return an EMPTY array rather than regressing in time. Empty IS the correct answer when every available item violates this floor; do not pad with older-event items, do not lie about eventHoursAgo.`
+            : "";
+          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Search GLOBALLY across ALL languages — pick the most authoritative/fastest primary source regardless of source language; do NOT pre-translate. Return strict JSON only: {"alerts":[{"title":"<headline in source's native language>","summary":"<2-3 sentence factual summary in source's native language>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"originalLanguage":"<ko|en|ja|zh|es|fr|de|other>","tags":["<tag1>","<tag2>"]}]}. URL INTEGRITY (CRITICAL): The "url" must be a URL you actually retrieved from a real web search result, copied verbatim. NEVER guess, fabricate, pattern-construct, or invent URLs (no made-up article IDs, no plausible-looking slugs, no reconstructed paths). If you do not have a real working URL for an item, OMIT it and pick a different verified item — even if that means returning fewer items. URLs that 404 are dropped downstream, so a single verified URL beats several guessed ones. Prefer canonical, stable URLs (homepage, official article URL) over search-result preview URLs. Never return an empty array (UNLESS the freshness floor below forces it) — if exact match is scarce, return the most relevant adjacent recent public content on the same theme with a verified URL. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${freshnessBlock}${knownBlock}${backupDeadHostsBlock}`;
           const backup = await openrouter.chat.completions.create({
             model: COLLECTOR_MODEL,
             max_tokens: COLLECTOR_MAX_TOKENS,
@@ -869,6 +912,42 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
     }
   }
 
+  // ─── Freshness floor enforcement (server-side, post-Collector) ────────
+  // Drop any candidate whose underlying event is older than the floor BEFORE
+  // we spend Verifier tokens on it. This is the second of three defenses
+  // (prompt → server filter → final-stage filter → client filter).
+  if (hasFreshnessFloor && candidates.length > 0) {
+    const beforeFresh = candidates.length;
+    const dropped: { title: string; eventMinutesAgo: number }[] = [];
+    candidates = candidates.filter((c) => {
+      if (c.eventMinutesAgo > maxAllowedEventMinutesAgo) {
+        dropped.push({ title: c.title, eventMinutesAgo: c.eventMinutesAgo });
+        return false;
+      }
+      return true;
+    });
+    if (dropped.length > 0) {
+      req.log.info(
+        {
+          floor: maxAllowedEventMinutesAgo,
+          dropped: dropped.length,
+          remaining: candidates.length,
+          examples: dropped.slice(0, 3),
+        },
+        "[freshness-floor] dropped older-event candidates pre-Verifier",
+      );
+      steps.push({
+        agent: "Collector",
+        status: candidates.length > 0 ? "partial" : "failed",
+        message:
+          candidates.length > 0
+            ? `최신성 게이트: ${beforeFresh}건 중 ${dropped.length}건이 기존 알림보다 과거 이벤트 — 폐기`
+            : `최신성 게이트: ${beforeFresh}건 모두 기존 알림보다 과거 이벤트 — 빈 결과 (다음 sweep 재시도)`,
+        durationMs: 0,
+      });
+    }
+  }
+
   // ============================================================
   // Selector — feedback-driven prefilter (runs AFTER URL gate so we
   // never spend Verifier tokens on items profiling will discard).
@@ -952,7 +1031,11 @@ For every candidate, output one entry in the same order with:
   • off-topic / low quality
   • the underlying event is much older than the publish date (republished old news)
   • SEMANTIC DUPLICATE of an existing user alert listed below — same story, even from a different source/URL/wording. KeyP's prime directive is "no duplicate alerts even from different outlets". When in doubt about novelty, set include=false.
-  • SEMANTIC DUPLICATE of an EARLIER candidate in this same batch (only the first occurrence may be included).
+  • SEMANTIC DUPLICATE of an EARLIER candidate in this same batch (only the first occurrence may be included).${
+            hasFreshnessFloor
+              ? `\n  • 🚨 FRESHNESS FLOOR VIOLATION — eventMinutesAgo > ${maxAllowedEventMinutesAgo}. The user already received an alert for a more recent event in this interest, so any candidate whose underlying event is OLDER than that floor MUST be excluded. This is non-negotiable: regressing in time turns the alerts into information garbage. When in doubt about an item's true event time, set include=false.`
+              : ""
+          }
 - title: the (possibly translated) headline in userLanguage, or original if already in userLanguage.
 - summary: the (possibly translated) 1-2 sentence summary in userLanguage, or original if already in userLanguage.
 - translated: boolean — true if you rewrote title/summary into userLanguage, false if the source was already in userLanguage.
@@ -1144,6 +1227,43 @@ Return exactly ${candidates.length} verifications in the same order.`,
   });
 
   // ============================================================
+  // FINAL FRESHNESS GATE — KeyP prime directive #2 ("never regress in time")
+  // Last line of defense: even if Verifier missed it or the fallback path
+  // bypassed earlier filters, drop any alert whose underlying event
+  // predates the freshness floor. Better to deliver fewer (or zero) items
+  // than information garbage.
+  // ============================================================
+  if (hasFreshnessFloor && alerts.length > 0) {
+    const beforeFinalFresh = alerts.length;
+    const droppedFinal: { title: string; eventMinutesAgo: number }[] = [];
+    alerts = alerts.filter((a) => {
+      const em = a.eventMinutesAgo ?? a.minutesAgo ?? 0;
+      if (em > maxAllowedEventMinutesAgo) {
+        droppedFinal.push({ title: a.title, eventMinutesAgo: em });
+        return false;
+      }
+      return true;
+    });
+    if (droppedFinal.length > 0) {
+      req.log.info(
+        {
+          floor: maxAllowedEventMinutesAgo,
+          dropped: droppedFinal.length,
+          remaining: alerts.length,
+          examples: droppedFinal.slice(0, 3),
+        },
+        "[freshness-floor] FINAL stage dropped stale-event alerts",
+      );
+      steps.push({
+        agent: "Deliverer",
+        status: alerts.length > 0 ? "partial" : "failed",
+        message: `최신성 최종 게이트: ${beforeFinalFresh}건 중 ${droppedFinal.length}건이 기존 알림보다 과거 — 폐기`,
+        durationMs: 0,
+      });
+    }
+  }
+
+  // ============================================================
   // FINAL DEDUP GATE — KeyP prime directive ("never duplicate")
   // Runs AFTER all upstream paths (Verifier success, Verifier-fail fallback,
   // backup-collector). Filters semantic duplicates against known items AND
@@ -1182,7 +1302,11 @@ Return exactly ${candidates.length} verifications in the same order.`,
   // directive by reviving a duplicate of an existing alert.
   if (requested === 1 && alerts.length === 0 && candidates.length > 0) {
     const eligible = candidates.filter(
-      (c) => !isSemanticDupOfAny({ title: c.title, summary: c.summary }, knownItems),
+      (c) =>
+        !isSemanticDupOfAny({ title: c.title, summary: c.summary }, knownItems) &&
+        // Seed-rescue must also respect the freshness floor — never revive a
+        // stale-event candidate just to avoid empty state. Silence wins.
+        (!hasFreshnessFloor || c.eventMinutesAgo <= maxAllowedEventMinutesAgo),
     );
     if (eligible.length === 0) {
       steps.push({

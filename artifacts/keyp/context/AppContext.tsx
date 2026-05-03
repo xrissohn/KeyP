@@ -578,13 +578,35 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           .map((a) => ({ title: a.title, summary: a.summary }));
 
         const refreshDeviceId = await getDeviceId().catch(() => undefined);
+
+        // Compute the freshness floor: the most recent event time we've ever
+        // delivered for this interest. Anything older than this is REJECTED
+        // at every layer (server prompts, server filter, AND the client
+        // filter below) — KeyP's prime directive is that no alert may
+        // regress in time.
+        //
+        // We INTENTIONALLY only consider alerts that carry an explicit
+        // `eventOccurredAt`. Falling back to `createdAt` (collection time,
+        // which is strictly later than the event) would create an
+        // artificially-strict floor on legacy data and could starve
+        // long-lived interests forever after the schema upgrade. Once any
+        // post-upgrade alert lands, the floor activates correctly.
+        const latestKnownEventMs = existing.reduce<number>((max, a) => {
+          if (!a.eventOccurredAt) return max;
+          const t = new Date(a.eventOccurredAt).getTime();
+          return Number.isFinite(t) && t > max ? t : max;
+        }, 0);
+        const latestKnownEventAt =
+          latestKnownEventMs > 0 ? new Date(latestKnownEventMs).toISOString() : undefined;
+
         const { alerts: incoming } = await generateAlertsForSpec(
           interest.spec,
           REFRESH_BATCH_SIZE,
           existingSummaries,
           refreshDeviceId,
           planRef.current,
-          languageRef.current
+          languageRef.current,
+          latestKnownEventAt,
         );
 
         // Client-side dedupe: URL match, normalized-title match, AND a token
@@ -629,6 +651,31 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
             (ef) => jaccard(ef, fp) >= 0.55
           );
           if (isSemanticDup) continue;
+
+          // CLIENT-SIDE FRESHNESS FLOOR — final defense in depth. Even if the
+          // server's prompt + filter let an older-event item through (LLM
+          // estimation noise, cache-stale data, etc.), we hard-drop anything
+          // whose underlying event happened before our most recent delivered
+          // event. This is the user's explicit prime directive: "절대 더 과거
+          // 시점의 뉴스는 알림하지 말 것."
+          if (latestKnownEventMs > 0) {
+            const incomingEventMs = a.eventOccurredAt
+              ? new Date(a.eventOccurredAt).getTime()
+              : new Date(a.createdAt).getTime();
+            if (Number.isFinite(incomingEventMs) && incomingEventMs < latestKnownEventMs) {
+              console.warn(
+                '[KeyP] dropped stale alert (event older than freshness floor):',
+                {
+                  interestId,
+                  title: a.title,
+                  eventOccurredAt: a.eventOccurredAt,
+                  latestKnownEventAt,
+                },
+              );
+              continue;
+            }
+          }
+
           fresh.push({ ...a, createdAt: new Date().toISOString(), freshness: 'live' });
           if (url) seenUrls.add(url);
           seenTitles.add(titleKey);
