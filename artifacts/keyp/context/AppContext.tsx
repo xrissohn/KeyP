@@ -401,23 +401,54 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         prev.includes(interestId) ? prev : [...prev, interestId]
       );
       try {
+        // Pass existing alerts (most recent 30) to the server so the Verifier
+        // can suppress semantic duplicates server-side, even when a competing
+        // outlet has rewritten the same story under a different URL/title.
+        const existing = alertsRef.current.filter((a) => a.interestId === interestId);
+        const existingSummaries = existing
+          .slice()
+          .sort(
+            (a, b) =>
+              new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
+          )
+          .slice(0, 30)
+          .map((a) => ({ title: a.title, summary: a.summary }));
+
         const { alerts: incoming } = await generateAlertsForSpec(
           interest.spec,
-          REFRESH_BATCH_SIZE
+          REFRESH_BATCH_SIZE,
+          existingSummaries
         );
 
-        // Dedupe: an alert is "already known" if its URL matches an existing
-        // alert for this interest OR if its normalized title matches. We check
-        // BOTH unconditionally so that same-title/different-URL duplicates are
-        // also rejected.
-        const existing = alertsRef.current.filter((a) => a.interestId === interestId);
+        // Client-side dedupe: URL match, normalized-title match, AND a token
+        // jaccard similarity gate as a final safety net for cross-source
+        // duplicates the server may have missed. KeyP's prime directive is
+        // "no duplicate alerts even from different outlets".
         const seenUrls = new Set<string>();
         const seenTitles = new Set<string>();
         const normTitle = (t: string) => t.trim().toLowerCase().replace(/\s+/g, ' ');
+        const tokenize = (s: string) =>
+          new Set(
+            s
+              .toLowerCase()
+              .replace(/[^\p{L}\p{N}\s]/gu, ' ')
+              .split(/\s+/)
+              .filter((w) => w.length >= 2)
+          );
+        const jaccard = (a: Set<string>, b: Set<string>) => {
+          if (a.size === 0 || b.size === 0) return 0;
+          let inter = 0;
+          a.forEach((x) => {
+            if (b.has(x)) inter += 1;
+          });
+          return inter / (a.size + b.size - inter);
+        };
+        const existingFingerprints: Set<string>[] = [];
         existing.forEach((a) => {
           const url = a.source?.url ?? a.originalUrl;
           if (url) seenUrls.add(url);
           seenTitles.add(normTitle(a.title));
+          existingFingerprints.push(tokenize(`${a.title} ${a.summary}`));
         });
 
         const fresh: Alert[] = [];
@@ -426,11 +457,15 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           const titleKey = normTitle(a.title);
           if (url && seenUrls.has(url)) continue;
           if (seenTitles.has(titleKey)) continue;
-          // Stamp fresh alerts with "now" so they show as live and are picked
-          // up by the NEW badge (createdAt > lastViewedAt).
+          const fp = tokenize(`${a.title} ${a.summary}`);
+          const isSemanticDup = existingFingerprints.some(
+            (ef) => jaccard(ef, fp) >= 0.55
+          );
+          if (isSemanticDup) continue;
           fresh.push({ ...a, createdAt: new Date().toISOString(), freshness: 'live' });
           if (url) seenUrls.add(url);
           seenTitles.add(titleKey);
+          existingFingerprints.push(fp);
         }
 
         const nowIso = new Date().toISOString();

@@ -13,6 +13,7 @@ export * from "./alertDataFreshness";
 export * from "./alertDataSource";
 export * from "./alertDataSourceType";
 export * from "./generateAlertsRequest";
+export * from "./generateAlertsRequestExistingAlertSummariesItem";
 export * from "./generatedAlertsResult";
 export * from "./healthStatus";
 export * from "./interestSpecData";

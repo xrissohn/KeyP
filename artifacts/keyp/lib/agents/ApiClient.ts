@@ -54,9 +54,14 @@ export async function callParseInterest(
 
 export async function callGenerateAlerts(
   spec: InterestSpecData,
-  count = 3
+  count = 3,
+  existingAlertSummaries: { title: string; summary: string }[] = []
 ): Promise<GeneratedAlertsResult> {
-  return postJson<GeneratedAlertsResult>('/agents/generate-alerts', { spec, count }, 45000);
+  return postJson<GeneratedAlertsResult>(
+    '/agents/generate-alerts',
+    { spec, count, existingAlertSummaries },
+    45000
+  );
 }
 
 // ───────────────────────── Push (server-side tracking) ─────────────────────

@@ -295,12 +295,25 @@ export const GenerateAlertsBody = zod.object({
     .min(1)
     .max(generateAlertsBodyCountMax)
     .default(generateAlertsBodyCountDefault),
+  existingAlertSummaries: zod
+    .array(
+      zod.object({
+        title: zod.string(),
+        summary: zod.string(),
+      }),
+    )
+    .optional()
+    .describe(
+      "Titles+summaries of alerts the user already received for this interest. Used by the Verifier to suppress semantic duplicates from different sources.",
+    ),
 });
 
 export const generateAlertsResponseAlertsItemConfidenceMin = 0;
 export const generateAlertsResponseAlertsItemConfidenceMax = 100;
 
 export const generateAlertsResponseAlertsItemMinutesAgoMin = 0;
+
+export const generateAlertsResponseAlertsItemEventMinutesAgoMin = 0;
 
 export const GenerateAlertsResponse = zod.object({
   alerts: zod.array(
@@ -328,6 +341,13 @@ export const GenerateAlertsResponse = zod.object({
         .number()
         .min(generateAlertsResponseAlertsItemMinutesAgoMin)
         .optional(),
+      eventMinutesAgo: zod
+        .number()
+        .min(generateAlertsResponseAlertsItemEventMinutesAgoMin)
+        .optional()
+        .describe(
+          "Minutes since the event\/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency.",
+        ),
     }),
   ),
   steps: zod.array(

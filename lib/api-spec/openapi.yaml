@@ -257,6 +257,15 @@ components:
           minimum: 1
           maximum: 5
           default: 3
+        existingAlertSummaries:
+          type: array
+          description: "Titles+summaries of alerts the user already received for this interest. Used by the Verifier to suppress semantic duplicates from different sources."
+          items:
+            type: object
+            required: [title, summary]
+            properties:
+              title: { type: string }
+              summary: { type: string }
     AlertData:
       type: object
       required:
@@ -299,6 +308,10 @@ components:
         minutesAgo:
           type: integer
           minimum: 0
+        eventMinutesAgo:
+          type: integer
+          minimum: 0
+          description: "Minutes since the event/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency."
     GeneratedAlertsResult:
       type: object
       required: [alerts, steps]

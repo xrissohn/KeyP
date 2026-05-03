@@ -129,6 +129,11 @@ export interface ParsedInterestResult {
   steps: AgentStep[];
 }
 
+export type GenerateAlertsRequestExistingAlertSummariesItem = {
+  title: string;
+  summary: string;
+};
+
 export interface GenerateAlertsRequest {
   spec: InterestSpecData;
   /**
@@ -136,6 +141,8 @@ export interface GenerateAlertsRequest {
    * @maximum 5
    */
   count?: number;
+  /** Titles+summaries of alerts the user already received for this interest. Used by the Verifier to suppress semantic duplicates from different sources. */
+  existingAlertSummaries?: GenerateAlertsRequestExistingAlertSummariesItem[];
 }
 
 export type AlertDataFreshness =
@@ -180,6 +187,11 @@ export interface AlertData {
   tags: string[];
   /** @minimum 0 */
   minutesAgo?: number;
+  /**
+   * Minutes since the event/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency.
+   * @minimum 0
+   */
+  eventMinutesAgo?: number;
 }
 
 export interface GeneratedAlertsResult {

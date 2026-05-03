@@ -1,4 +1,4 @@
-import { and, eq, lt, isNull, or, inArray } from "drizzle-orm";
+import { and, eq, lt, isNull, or, inArray, desc } from "drizzle-orm";
 import {
   db,
   trackedInterestsTable,
@@ -30,6 +30,7 @@ function dedupKeyFor(a: AlertData): string {
 async function callGenerateAlerts(
   spec: InterestSpecData,
   count: number,
+  existingAlertSummaries: { title: string; summary: string }[] = [],
 ): Promise<GeneratedAlertsResult | null> {
   const port = process.env["PORT"];
   if (!port) return null;
@@ -37,7 +38,7 @@ async function callGenerateAlerts(
     const res = await fetch(`http://127.0.0.1:${port}/api/agents/generate-alerts`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ spec, count }),
+      body: JSON.stringify({ spec, count, existingAlertSummaries }),
     });
     if (!res.ok) {
       logger.warn({ status: res.status }, "[poller] generate-alerts non-2xx");
@@ -60,8 +61,21 @@ async function sweepOne(rowInterestId: string): Promise<void> {
   if (!row) return;
 
   const spec = row.spec as InterestSpecData;
+  // Pull the most recent 30 already-seen titles for this interest so the
+  // Verifier can suppress semantic duplicates (same story republished by a
+  // different outlet under a different URL/title) BEFORE we waste a push.
+  const seenRows = await db
+    .select({ title: seenAlertsTable.title })
+    .from(seenAlertsTable)
+    .where(eq(seenAlertsTable.interestId, rowInterestId))
+    .orderBy(desc(seenAlertsTable.seenAt))
+    .limit(30);
+  const existingAlertSummaries = seenRows.map((r) => ({
+    title: r.title,
+    summary: r.title,
+  }));
   // Fetch a small batch so dedup has multiple candidates per sweep.
-  const result = await callGenerateAlerts(spec, 3);
+  const result = await callGenerateAlerts(spec, 3, existingAlertSummaries);
   const now = new Date();
 
   // Always advance lastSweepAt — even on failure — so a permanently-broken

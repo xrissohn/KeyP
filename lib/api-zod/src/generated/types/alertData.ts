@@ -22,4 +22,9 @@ export interface AlertData {
   tags: string[];
   /** @minimum 0 */
   minutesAgo?: number;
+  /**
+   * Minutes since the event/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency.
+   * @minimum 0
+   */
+  eventMinutesAgo?: number;
 }

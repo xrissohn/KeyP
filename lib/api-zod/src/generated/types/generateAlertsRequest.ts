@@ -5,6 +5,7 @@
  * API specification
  * OpenAPI spec version: 0.1.0
  */
+import type { GenerateAlertsRequestExistingAlertSummariesItem } from "./generateAlertsRequestExistingAlertSummariesItem";
 import type { InterestSpecData } from "./interestSpecData";
 
 export interface GenerateAlertsRequest {
@@ -14,4 +15,6 @@ export interface GenerateAlertsRequest {
    * @maximum 5
    */
   count?: number;
+  /** Titles+summaries of alerts the user already received for this interest. Used by the Verifier to suppress semantic duplicates from different sources. */
+  existingAlertSummaries?: GenerateAlertsRequestExistingAlertSummariesItem[];
 }

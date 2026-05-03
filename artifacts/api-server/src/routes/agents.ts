@@ -241,7 +241,59 @@ interface CollectedCandidate {
   sourceName: string;
   url?: string;
   minutesAgo: number;
+  eventMinutesAgo: number;
   tags: string[];
+}
+
+// Deterministic Korean-friendly semantic-dedup helpers. Whitespace tokenization
+// is unreliable for Korean (agglutinative morphology), so we use character
+// bigram Jaccard over a punctuation-stripped (title + summary) string. This
+// catches cross-source rewrites of the same story even when the LLM-side
+// Verifier missed them. This gate is the LAST line of defense for KeyP's
+// prime directive: never alert the user about the same content twice.
+function _normalizeForDedup(s: string): string {
+  return (s || "")
+    .toLowerCase()
+    .replace(/[\s\p{P}\p{S}]+/gu, "")
+    .trim();
+}
+function _bigrams(s: string): Set<string> {
+  const out = new Set<string>();
+  for (let i = 0; i < s.length - 1; i++) out.add(s.slice(i, i + 2));
+  return out;
+}
+function semanticSimilarity(a: string, b: string): number {
+  const na = _normalizeForDedup(a);
+  const nb = _normalizeForDedup(b);
+  if (!na || !nb) return 0;
+  if (na === nb) return 1;
+  const ba = _bigrams(na);
+  const bb = _bigrams(nb);
+  if (ba.size === 0 || bb.size === 0) return 0;
+  let inter = 0;
+  for (const g of ba) if (bb.has(g)) inter++;
+  const union = ba.size + bb.size - inter;
+  return union === 0 ? 0 : inter / union;
+}
+const SEMANTIC_DUP_THRESHOLD = 0.45;
+function isSemanticDupOfAny(
+  candidate: { title: string; summary: string },
+  known: { title: string; summary: string }[],
+): boolean {
+  const ct = `${candidate.title} ${candidate.summary}`;
+  for (const k of known) {
+    const kt = `${k.title} ${k.summary}`;
+    if (semanticSimilarity(ct, kt) >= SEMANTIC_DUP_THRESHOLD) return true;
+  }
+  return false;
+}
+
+function effectiveAge(c: { minutesAgo: number; eventMinutesAgo: number }): number {
+  // Rank by content recency (when the underlying event actually occurred),
+  // not by when an article was republished. If a 1-day-old post merely
+  // recaps a 1-year-old story, eventMinutesAgo dwarfs minutesAgo and the
+  // item correctly drops behind a slightly older but genuinely-fresh post.
+  return Math.max(c.minutesAgo, c.eventMinutesAgo);
 }
 
 function defaultSourceType(
@@ -257,8 +309,9 @@ router.post("/agents/generate-alerts", async (req, res) => {
     res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
     return;
   }
-  const { spec, count } = parsed.data;
+  const { spec, count, existingAlertSummaries } = parsed.data;
   const requested = count ?? 3;
+  const knownItems = (existingAlertSummaries ?? []).slice(0, 40);
   const steps: AgentStep[] = [];
 
   // ============================================================
@@ -318,6 +371,7 @@ Respond ONLY with strict JSON, no prose:
       "sourceName": "<publisher or channel/handle name>",
       "matchedChannel": "<which Planner channel surfaced this — copy from the list above, or 'adjacent' if you broadened>",
       "publishedHoursAgo": <number>,
+      "eventHoursAgo": <number>,
       "tags": ["<tag1>", "<tag2>", "<tag3>"]
     }
   ]
@@ -326,8 +380,11 @@ Respond ONLY with strict JSON, no prose:
 Hard rules:
 - NEVER return an empty alerts array. If no exact match exists in the listed channels, broaden to the most relevant adjacent public content on the same topic and return at least 1 real, dated finding with a real URL.
 - Each item MUST be real public web content with a real URL — no placeholders, no "I cannot help with that", no apologies.
+- **Content-recency over republish-recency**: if a recently-published page is actually recapping a much older event/news/gossip, set eventHoursAgo to when the EVENT itself occurred (read the body — dates in the article, "X years ago", "in 2024", etc.). Strongly prefer items whose underlying event is genuinely recent over items merely republished today about old stories.
+- If the user already received the items listed under EXISTING USER ALERTS below, DO NOT return the same story again, even from a different source/URL — find a different, genuinely new development.
 - Translate non-Korean source titles into natural Korean.
-- publishedHoursAgo: best estimate from the page; if unknown use 6.
+- publishedHoursAgo: estimated hours since the page was published. If unknown use 6.
+- eventHoursAgo: estimated hours since the underlying event/news actually OCCURRED in the real world. If the article is a same-day report on a same-day event, eventHoursAgo ≈ publishedHoursAgo. If the article republishes/recaps an old story, eventHoursAgo is much larger. If you genuinely can't tell, set eventHoursAgo equal to publishedHoursAgo.
 - Tags: salient nouns from the content (Korean preferred).`,
           },
           {
@@ -345,7 +402,16 @@ Generic query hints (fallback only): ${queryHints}
 INVESTIGATION PLAN — execute in this order:
 ${strategyBlock}
 
-Return up to ${requested} items.`,
+EXISTING USER ALERTS (already delivered — do NOT return any of these stories again, even rewritten or from a different source):
+${
+  knownItems.length === 0
+    ? "  (none — this is the first alert for this interest)"
+    : knownItems
+        .map((k, i) => `  ${i + 1}. ${k.title} — ${k.summary.slice(0, 160)}`)
+        .join("\n")
+}
+
+Return up to ${requested} items, sorted with the most content-recent first (smallest eventHoursAgo first).`,
           },
         ],
       });
@@ -384,6 +450,10 @@ Return up to ${requested} items.`,
             typeof a.publishedHoursAgo === "number"
               ? Math.max(0, a.publishedHoursAgo)
               : 6;
+          const eventHoursAgo =
+            typeof a.eventHoursAgo === "number"
+              ? Math.max(0, a.eventHoursAgo)
+              : hoursAgo;
           return {
             title: String(a.title ?? `${spec.topic} 관련 신호`),
             summary: String(a.summary ?? `${spec.topic} 관련 새로운 정보가 감지되었습니다.`),
@@ -394,6 +464,7 @@ Return up to ${requested} items.`,
                 : detected,
             url,
             minutesAgo: Math.round(hoursAgo * 60),
+            eventMinutesAgo: Math.round(eventHoursAgo * 60),
             tags: Array.isArray(a.tags)
               ? a.tags.slice(0, 4).map(String)
               : spec.entities.slice(0, 3),
@@ -401,7 +472,10 @@ Return up to ${requested} items.`,
         });
       if (candidates.length === 0) {
         try {
-          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"tags":["<tag1>","<tag2>"]}]}. Real URLs only. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme.`;
+          const knownBlock = knownItems.length
+            ? `\n\nALREADY-DELIVERED STORIES (do NOT repeat any of these, even with different wording or a different source URL):\n${knownItems.map((k, i) => `${i + 1}. ${k.title} — ${k.summary}`).join("\n")}`
+            : "";
+          const backupQuery = `Find ${requested} real, recently published public web item(s) (news article, blog post, YouTube video, Reddit thread, X post, or community/event page) about: "${spec.topic}"${spec.locationScope ? ` in ${spec.locationScope}` : ""}. Return strict JSON only: {"alerts":[{"title":"<Korean headline>","summary":"<Korean 2-3 sentence factual summary>","url":"<real URL>","sourceName":"<publisher>","matchedChannel":"backup","publishedHoursAgo":<number>,"eventHoursAgo":<number — hours since the underlying event actually occurred; equals publishedHoursAgo for same-day reporting, much larger for republished/recap content>,"tags":["<tag1>","<tag2>"]}]}. Real URLs only. Never return an empty array — if exact match is scarce, return the most relevant adjacent recent public content on the same theme. Strongly prefer items whose underlying event genuinely happened recently over items that merely republish old stories today.${knownBlock}`;
           const backup = await openrouter.chat.completions.create({
             model: COLLECTOR_MODEL,
             max_tokens: COLLECTOR_MAX_TOKENS,
@@ -431,6 +505,7 @@ Return up to ${requested} items.`,
                 : "rss"
                 : defaultSourceType(spec);
               const hoursAgo = typeof a.publishedHoursAgo === "number" ? Math.max(0, a.publishedHoursAgo) : 6;
+              const eventHoursAgo = typeof a.eventHoursAgo === "number" ? Math.max(0, a.eventHoursAgo) : hoursAgo;
               return {
                 title: String(a.title ?? `${spec.topic} 관련 신호`),
                 summary: String(a.summary ?? `${spec.topic} 관련 새로운 정보가 감지되었습니다.`),
@@ -438,6 +513,7 @@ Return up to ${requested} items.`,
                 sourceName: typeof a.sourceName === "string" && a.sourceName.length > 0 ? a.sourceName : detected,
                 url,
                 minutesAgo: Math.round(hoursAgo * 60),
+                eventMinutesAgo: Math.round(eventHoursAgo * 60),
                 tags: Array.isArray(a.tags) ? a.tags.slice(0, 4).map(String) : spec.entities.slice(0, 3),
               };
             });
@@ -483,13 +559,19 @@ Return up to ${requested} items.`,
       const message = await anthropic.messages.create({
         model: VERIFIER_MODEL,
         max_tokens: VERIFIER_MAX_TOKENS,
-        system: `You are the Verifier Agent of KeyP. Evaluate each candidate alert for credibility and relevance to the user's interest spec.
+        system: `You are the Verifier Agent of KeyP. Evaluate each candidate alert for credibility, relevance, content-recency, and SEMANTIC NOVELTY.
+
 For every candidate, output one entry in the same order with:
-- confidence: integer 0-100 reflecting (a) source reliability, (b) match to topic/entities, (c) freshness alignment.
-  Penalize generic statements, off-topic items, and unverifiable claims.
-  Boost items with specific facts, named sources, recent publication, and direct topic match.
-- reason: one Korean sentence (≤80 chars) explaining WHY this matches the user's interest.
-- include: boolean. false if the item is off-topic, duplicate, or low-quality.
+- confidence: integer 0-100 reflecting (a) source reliability, (b) match to topic/entities, (c) **content-recency** (publishMinutesAgo AND eventMinutesAgo — penalize items where eventMinutesAgo is far larger than publishMinutesAgo, i.e. old-news republished today), (d) match to user persona/goal.
+  Penalize generic statements, off-topic items, unverifiable claims, and stale-event republish posts.
+  Boost items with specific facts, named sources, recent OCCURRENCE date, and direct topic match.
+- reason: one Korean sentence (≤80 chars) explaining WHY this matches and why it is fresh.
+- include: boolean. Set to FALSE for ANY of the following:
+  • off-topic / low quality
+  • the underlying event is much older than the publish date (republished old news)
+  • SEMANTIC DUPLICATE of an existing user alert listed below — same story, even from a different source/URL/wording. KeyP's prime directive is "no duplicate alerts even from different outlets". When in doubt about novelty, set include=false.
+  • SEMANTIC DUPLICATE of an EARLIER candidate in this same batch (only the first occurrence may be included).
+
 Respond ONLY with strict JSON:
 { "verifications": [ { "confidence": <int>, "reason": "<Korean>", "include": <bool> } ] }`,
         messages: [
@@ -497,11 +579,20 @@ Respond ONLY with strict JSON:
             role: "user",
             content: `Interest spec: ${JSON.stringify(spec)}
 
+EXISTING USER ALERTS (already delivered — any candidate covering the same story/event must be marked include=false, even with different wording or a different source URL):
+${
+  knownItems.length === 0
+    ? "  (none)"
+    : knownItems
+        .map((k, i) => `  ${i + 1}. ${k.title} — ${k.summary.slice(0, 200)}`)
+        .join("\n")
+}
+
 Candidates (${candidates.length}):
 ${candidates
   .map(
     (c, i) =>
-      `${i + 1}. [${c.sourceType}] ${c.title}\n   ${c.summary}\n   url=${c.url ?? "n/a"}, ${c.minutesAgo}분 전`,
+      `${i + 1}. [${c.sourceType}] ${c.title}\n   ${c.summary}\n   url=${c.url ?? "n/a"}, publish=${c.minutesAgo}분 전, event=${c.eventMinutesAgo}분 전`,
   )
   .join("\n\n")}
 
@@ -527,12 +618,13 @@ Return exactly ${candidates.length} verifications in the same order.`,
             Math.max(0, Math.round(Number(v.confidence) || 70)),
           );
           if (confidence < 50) return null;
+          const ageMin = effectiveAge(c);
           const freshness: AlertData["freshness"] =
-            c.minutesAgo < 10
+            ageMin < 10
               ? "live"
-              : c.minutesAgo < 60
+              : ageMin < 60
               ? "hot"
-              : c.minutesAgo < 360
+              : ageMin < 360
               ? "recent"
               : "older";
           return {
@@ -547,6 +639,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
             source: { type: c.sourceType, name: c.sourceName, url: c.url },
             tags: c.tags,
             minutesAgo: c.minutesAgo,
+            eventMinutesAgo: c.eventMinutesAgo,
           };
         })
         .filter((a): a is AlertData => a !== null);
@@ -560,12 +653,13 @@ Return exactly ${candidates.length} verifications in the same order.`,
       req.log.error({ err }, "Verifier agent (Claude) failed");
       // Fallback: pass candidates through with neutral confidence.
       alerts = candidates.map((c): AlertData => {
+        const ageMin = effectiveAge(c);
         const freshness: AlertData["freshness"] =
-          c.minutesAgo < 10
+          ageMin < 10
             ? "live"
-            : c.minutesAgo < 60
+            : ageMin < 60
             ? "hot"
-            : c.minutesAgo < 360
+            : ageMin < 360
             ? "recent"
             : "older";
         return {
@@ -577,6 +671,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
           source: { type: c.sourceType, name: c.sourceName, url: c.url },
           tags: c.tags,
           minutesAgo: c.minutesAgo,
+          eventMinutesAgo: c.eventMinutesAgo,
         };
       });
       steps.push({
@@ -593,27 +688,73 @@ Return exactly ${candidates.length} verifications in the same order.`,
   // ============================================================
   const delivererStart = Date.now();
   alerts.sort((a, b) => {
-    const order: Record<AlertData["freshness"], number> = {
-      live: 0,
-      hot: 1,
-      recent: 2,
-      older: 3,
-    };
-    return order[a.freshness] - order[b.freshness] || b.confidence - a.confidence;
+    // Primary: content-recency (max of publish-age and event-age) — smallest wins.
+    // This makes a 3-day-old article about a 1-hour-old event beat a 1-hour-old
+    // article that merely recaps year-old news.
+    const ageA = Math.max(a.minutesAgo ?? 6 * 60, a.eventMinutesAgo ?? a.minutesAgo ?? 6 * 60);
+    const ageB = Math.max(b.minutesAgo ?? 6 * 60, b.eventMinutesAgo ?? b.minutesAgo ?? 6 * 60);
+    if (ageA !== ageB) return ageA - ageB;
+    return b.confidence - a.confidence;
   });
+
+  // ============================================================
+  // FINAL DEDUP GATE — KeyP prime directive ("never duplicate")
+  // Runs AFTER all upstream paths (Verifier success, Verifier-fail fallback,
+  // backup-collector). Filters semantic duplicates against known items AND
+  // against earlier items in the same response (keep first only).
+  // This is intentionally redundant with Verifier prompt rules so that even
+  // when an upstream path is bypassed, dedup still holds.
+  // ============================================================
+  {
+    const before = alerts.length;
+    const kept: AlertData[] = [];
+    for (const a of alerts) {
+      const dupOfKnown = isSemanticDupOfAny(
+        { title: a.title, summary: a.summary },
+        knownItems,
+      );
+      const dupOfBatch = isSemanticDupOfAny(
+        { title: a.title, summary: a.summary },
+        kept.map((k) => ({ title: k.title, summary: k.summary })),
+      );
+      if (!dupOfKnown && !dupOfBatch) kept.push(a);
+    }
+    alerts = kept;
+    if (before !== kept.length) {
+      req.log.info(
+        { dropped: before - kept.length, kept: kept.length, knownCount: knownItems.length },
+        "Final dedup gate dropped semantic duplicates",
+      );
+    }
+  }
 
   // Seed guarantee: when the caller asked for exactly 1 (initial registration),
   // the user must always see at least one most-recent related signal — never
   // an empty list. If Verifier filtered everything out, rescue the strongest
-  // raw candidate with a softened confidence floor.
+  // raw candidate with a softened confidence floor — but ONLY among candidates
+  // that pass the same dedup gate, so seed rescue can never violate the prime
+  // directive by reviving a duplicate of an existing alert.
   if (requested === 1 && alerts.length === 0 && candidates.length > 0) {
-    const best = [...candidates].sort((a, b) => a.minutesAgo - b.minutesAgo)[0]!;
+    const eligible = candidates.filter(
+      (c) => !isSemanticDupOfAny({ title: c.title, summary: c.summary }, knownItems),
+    );
+    if (eligible.length === 0) {
+      steps.push({
+        agent: "Deliverer",
+        status: "partial",
+        message: "모든 후보가 기존 알림과 중복 — 빈 결과 유지 (중복 알림 금지)",
+        durationMs: 0,
+      });
+      // fall through; alerts stays empty
+    } else {
+    const best = [...eligible].sort((a, b) => effectiveAge(a) - effectiveAge(b))[0]!;
+    const ageMin = effectiveAge(best);
     const freshness: AlertData["freshness"] =
-      best.minutesAgo < 10
+      ageMin < 10
         ? "live"
-        : best.minutesAgo < 60
+        : ageMin < 60
         ? "hot"
-        : best.minutesAgo < 360
+        : ageMin < 360
         ? "recent"
         : "older";
     alerts = [
@@ -627,6 +768,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
         source: { type: best.sourceType, name: best.sourceName, url: best.url },
         tags: best.tags,
         minutesAgo: best.minutesAgo,
+        eventMinutesAgo: best.eventMinutesAgo,
       },
     ];
     steps.push({
@@ -635,6 +777,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
       message: "검증 통과 신호가 없어 가장 최근 후보를 참고용으로 보존",
       durationMs: 0,
     });
+    }
   }
 
   alerts = alerts.slice(0, requested);

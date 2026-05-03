@@ -121,7 +121,8 @@ const VALID_SOURCES_ALERT = new Set<SourceType>(['youtube', 'twitter', 'reddit',
 
 export async function generateAlertsForSpec(
   spec: InterestSpec,
-  count = 3
+  count = 3,
+  existingAlertSummaries: { title: string; summary: string }[] = []
 ): Promise<GenerateAlertsWithStepsResult> {
   try {
     const result = await callGenerateAlerts(
@@ -140,7 +141,8 @@ export async function generateAlertsForSpec(
         targetPersona: spec.targetPersona,
         searchStrategy: spec.searchStrategy,
       },
-      count
+      count,
+      existingAlertSummaries
     );
     const alerts = (result.alerts ?? []).map((a): Alert => {
       const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)
