@@ -645,6 +645,15 @@ export const STRINGS: Record<string, Record<Language, string>> = {
   },
   'auth.register.haveAccount': { ko: '이미 계정이 있으신가요? ', en: 'Already have an account? ' },
   'auth.register.signin': { ko: '로그인', en: 'Sign in' },
+  'auth.google.continue': { ko: 'Google로 계속하기', en: 'Continue with Google' },
+  'auth.verify.title': { ko: '이메일 인증', en: 'Verify your email' },
+  'auth.verify.subtitle': {
+    ko: '{email}로 보낸 인증 코드를 입력하세요',
+    en: 'Enter the code we sent to {email}',
+  },
+  'auth.verify.codePlaceholder': { ko: '6자리 인증 코드', en: '6-digit code' },
+  'auth.verify.btn': { ko: '인증하기', en: 'Verify' },
+  'auth.verify.resend': { ko: '코드 다시 받기', en: 'Resend code' },
 
   // ─── Pipeline fallback messages (shown in step list) ───────────────
   'pipeline.collectorFail': {

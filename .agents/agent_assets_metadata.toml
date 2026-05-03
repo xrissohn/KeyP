@@ -71,3 +71,69 @@ id = "n3DpFkXQKd7Vd9AmuEoa9"
 uri = "file://screenshots/keyp-11-privacy.jpg"
 type = "image"
 title = "11 — 개인정보처리방침"
+
+[[outputs]]
+id = "J0uNaWyw9LzV8qGPdVGMP"
+uri = "file://screenshots/keyp-en-01-onboarding.jpg"
+type = "image"
+title = "01 — Onboarding"
+
+[[outputs]]
+id = "3cVSTfeVldzwcnciOf1Su"
+uri = "file://screenshots/keyp-en-02-login.jpg"
+type = "image"
+title = "02 — Sign in"
+
+[[outputs]]
+id = "Rzvp1chGclCPcbZgVUqMQ"
+uri = "file://screenshots/keyp-en-03-register.jpg"
+type = "image"
+title = "03 — Get started"
+
+[[outputs]]
+id = "-aKETPH68IUI-WQaXChdS"
+uri = "file://screenshots/keyp-en-04-home.jpg"
+type = "image"
+title = "04 — Home feed"
+
+[[outputs]]
+id = "IZ-sm9FUnH6mUd6SGWM07"
+uri = "file://screenshots/keyp-en-05-interests.jpg"
+type = "image"
+title = "05 — Interests"
+
+[[outputs]]
+id = "lH1gkkuAEGGb1XfDQKc0q"
+uri = "file://screenshots/keyp-en-06-add-interest.jpg"
+type = "image"
+title = "06 — Add interest"
+
+[[outputs]]
+id = "B3RS19bKfeFcmIn9f3H0v"
+uri = "file://screenshots/keyp-en-07-profile.jpg"
+type = "image"
+title = "07 — Profile"
+
+[[outputs]]
+id = "uAE9bDcB3hcwfBtSx1aQD"
+uri = "file://screenshots/keyp-en-08-pricing.jpg"
+type = "image"
+title = "08 — Pricing"
+
+[[outputs]]
+id = "gSQju2w34bq0re8QMzJiS"
+uri = "file://screenshots/keyp-en-09-feedback.jpg"
+type = "image"
+title = "09 — Feedback"
+
+[[outputs]]
+id = "SJf8fWuTbxuzHgCyrv4aa"
+uri = "file://screenshots/keyp-en-10-saved.jpg"
+type = "image"
+title = "10 — Saved"
+
+[[outputs]]
+id = "1l0GXeCyi-if5y-oAUE8Y"
+uri = "file://screenshots/keyp-en-11-privacy.jpg"
+type = "image"
+title = "11 — Privacy"

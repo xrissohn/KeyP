@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useI18n } from '@/context/AppContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,6 +28,7 @@ export default function LoginScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useI18n();
   const { signIn, errors, fetchStatus } = useSignIn();
   const { startSSOFlow } = useSSO();
   const { isSignedIn } = useClerkAuth();
@@ -166,15 +168,15 @@ export default function LoginScreen() {
               resizeMode="contain"
               accessibilityLabel="KeyP 로고"
             />
-            <Text style={[styles.title, { color: colors.foreground }]}>다시 만나서 반가워요</Text>
+            <Text style={[styles.title, { color: colors.foreground }]}>{t('auth.login.title')}</Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
-              KeyP 계정으로 로그인하세요
+              {t('auth.login.subtitle')}
             </Text>
           </View>
 
           <View style={styles.form}>
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: colors.foreground }]}>이메일</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>{t('auth.email')}</Text>
               <View
                 style={[
                   styles.inputWrap,
@@ -214,7 +216,7 @@ export default function LoginScreen() {
               </View>
               {!emailValid && (
                 <Text style={[styles.errorText, { color: colors.destructive }]}>
-                  올바른 이메일 형식이 아닙니다
+                  {t('auth.invalidEmail')}
                 </Text>
               )}
               {errors?.fields?.identifier && (
@@ -225,7 +227,7 @@ export default function LoginScreen() {
             </View>
 
             <View style={styles.fieldGroup}>
-              <Text style={[styles.label, { color: colors.foreground }]}>비밀번호</Text>
+              <Text style={[styles.label, { color: colors.foreground }]}>{t('auth.password')}</Text>
               <View
                 style={[
                   styles.inputWrap,
@@ -243,7 +245,7 @@ export default function LoginScreen() {
                 />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="비밀번호를 입력하세요"
+                  placeholder={t('auth.passwordPlaceholder')}
                   placeholderTextColor={colors.mutedForeground}
                   value={password}
                   onChangeText={setPassword}
@@ -295,7 +297,7 @@ export default function LoginScreen() {
                 <ActivityIndicator color="#fff" />
               ) : (
                 <>
-                  <Text style={styles.loginBtnText}>로그인</Text>
+                  <Text style={styles.loginBtnText}>{t('auth.login.btn')}</Text>
                   <Feather name="arrow-right" size={18} color="#fff" />
                 </>
               )}
@@ -303,7 +305,7 @@ export default function LoginScreen() {
 
             <View style={styles.dividerRow}>
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-              <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>또는</Text>
+              <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>{t('auth.or')}</Text>
               <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
             </View>
 
@@ -324,7 +326,7 @@ export default function LoginScreen() {
                 <>
                   <Text style={[styles.googleIcon, { color: colors.foreground }]}>G</Text>
                   <Text style={[styles.googleLabel, { color: colors.foreground }]}>
-                    Google로 계속하기
+                    {t('auth.google.continue')}
                   </Text>
                 </>
               )}
@@ -333,10 +335,10 @@ export default function LoginScreen() {
 
           <View style={styles.bottomSwitch}>
             <Text style={[styles.switchText, { color: colors.mutedForeground }]}>
-              아직 계정이 없으신가요?
+              {t('auth.noAccount')}
             </Text>
             <TouchableOpacity onPress={() => router.push('/(auth)/register')}>
-              <Text style={[styles.switchLink, { color: colors.primary }]}>회원가입</Text>
+              <Text style={[styles.switchLink, { color: colors.primary }]}>{t('auth.signup')}</Text>
             </TouchableOpacity>
           </View>
         </ScrollView>

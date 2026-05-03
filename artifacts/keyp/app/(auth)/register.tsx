@@ -20,6 +20,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useColors } from '@/hooks/useColors';
+import { useI18n } from '@/context/AppContext';
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -27,6 +28,7 @@ export default function RegisterScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const { t } = useI18n();
   const { signUp, errors, fetchStatus } = useSignUp();
   const { startSSOFlow } = useSSO();
   const { isSignedIn } = useClerkAuth();
@@ -165,12 +167,12 @@ export default function RegisterScreen() {
               accessibilityLabel="KeyP 로고"
             />
             <Text style={[styles.title, { color: colors.foreground }]}>
-              {stage === 'verify' ? '이메일 인증' : 'KeyP 시작하기'}
+              {stage === 'verify' ? t('auth.verify.title') : t('auth.register.title')}
             </Text>
             <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>
               {stage === 'verify'
-                ? `${email}로 보낸 인증 코드를 입력하세요`
-                : '관심사를 등록하고 먼저 알림받으세요'}
+                ? t('auth.verify.subtitle', { email })
+                : t('auth.register.subtitle')}
             </Text>
           </View>
 
@@ -182,7 +184,7 @@ export default function RegisterScreen() {
                 <Feather name="mail" size={18} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="이메일"
+                  placeholder={t('auth.email')}
                   placeholderTextColor={colors.mutedForeground}
                   value={email}
                   onChangeText={setEmail}
@@ -204,7 +206,7 @@ export default function RegisterScreen() {
                 <Feather name="lock" size={18} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="비밀번호 (8자 이상)"
+                  placeholder={t('auth.register.passwordPlaceholder')}
                   placeholderTextColor={colors.mutedForeground}
                   value={password}
                   onChangeText={setPassword}
@@ -220,9 +222,11 @@ export default function RegisterScreen() {
               )}
 
               <Text style={[styles.terms, { color: colors.mutedForeground }]}>
-                가입하면 KeyP의{' '}
-                <Text style={{ color: colors.primary }}>이용약관</Text>과{' '}
-                <Text style={{ color: colors.primary }}>개인정보처리방침</Text>에 동의하게 됩니다.
+                {t('auth.register.terms.prefix')}{' '}
+                <Text style={{ color: colors.primary }}>{t('auth.register.terms.tos')}</Text>{' '}
+                {t('auth.register.terms.and')}{' '}
+                <Text style={{ color: colors.primary }}>{t('auth.register.terms.privacy')}</Text>
+                {t('auth.register.terms.suffix')}
               </Text>
 
               <TouchableOpacity
@@ -234,13 +238,13 @@ export default function RegisterScreen() {
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>계정 만들기</Text>
+                  <Text style={styles.primaryBtnText}>{t('auth.register.btn')}</Text>
                 )}
               </TouchableOpacity>
 
               <View style={styles.dividerRow}>
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
-                <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>또는</Text>
+                <Text style={[styles.dividerText, { color: colors.mutedForeground }]}>{t('auth.or')}</Text>
                 <View style={[styles.dividerLine, { backgroundColor: colors.border }]} />
               </View>
 
@@ -256,7 +260,7 @@ export default function RegisterScreen() {
                   <>
                     <Text style={[styles.googleIcon, { color: colors.foreground }]}>G</Text>
                     <Text style={[styles.googleLabel, { color: colors.foreground }]}>
-                      Google로 계속하기
+                      {t('auth.google.continue')}
                     </Text>
                   </>
                 )}
@@ -273,7 +277,7 @@ export default function RegisterScreen() {
                 <Feather name="hash" size={18} color={colors.mutedForeground} />
                 <TextInput
                   style={[styles.input, { color: colors.foreground }]}
-                  placeholder="6자리 인증 코드"
+                  placeholder={t('auth.verify.codePlaceholder')}
                   placeholderTextColor={colors.mutedForeground}
                   value={code}
                   onChangeText={setCode}
@@ -298,13 +302,13 @@ export default function RegisterScreen() {
                 {isLoading ? (
                   <ActivityIndicator color="#fff" />
                 ) : (
-                  <Text style={styles.primaryBtnText}>인증하기</Text>
+                  <Text style={styles.primaryBtnText}>{t('auth.verify.btn')}</Text>
                 )}
               </TouchableOpacity>
 
               <TouchableOpacity onPress={handleResend} style={{ alignSelf: 'center' }}>
                 <Text style={{ color: colors.primary, fontFamily: 'Inter_500Medium', fontSize: 13 }}>
-                  코드 다시 받기
+                  {t('auth.verify.resend')}
                 </Text>
               </TouchableOpacity>
             </View>
@@ -312,8 +316,8 @@ export default function RegisterScreen() {
 
           <TouchableOpacity onPress={() => router.push('/(auth)/login')}>
             <Text style={[styles.switchText, { color: colors.mutedForeground }]}>
-              이미 계정이 있으신가요?{' '}
-              <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>로그인</Text>
+              {t('auth.register.haveAccount')}
+              <Text style={{ color: colors.primary, fontFamily: 'Inter_600SemiBold' }}>{t('auth.register.signin')}</Text>
             </Text>
           </TouchableOpacity>
         </ScrollView>
