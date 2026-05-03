@@ -1253,6 +1253,29 @@ Return exactly ${candidates.length} verifications in the same order.`,
         },
         "[verifier] translation summary",
       );
+      const rejected = candidates
+        .map((c, i) => {
+          const v =
+            typeof verifications[i] === "object" && verifications[i] !== null
+              ? (verifications[i] as Record<string, unknown>)
+              : {};
+          if (v.include === false || (Number(v.confidence) || 70) < 50) {
+            return {
+              title: c.title.slice(0, 80),
+              confidence: Number(v.confidence) || 0,
+              reason:
+                typeof v.reason === "string"
+                  ? v.reason.slice(0, 140)
+                  : "(no reason)",
+              eventMinutesAgo: c.eventMinutesAgo,
+            };
+          }
+          return null;
+        })
+        .filter((x) => x !== null);
+      if (rejected.length > 0) {
+        req.log.warn({ rejected }, "[verifier] rejected candidates");
+      }
       steps.push({
         agent: "Verifier",
         status: "success",
