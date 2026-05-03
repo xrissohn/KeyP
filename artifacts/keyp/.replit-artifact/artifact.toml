@@ -3,7 +3,6 @@ previewPath = "/"
 title = "KeyP"
 version = "1.0.0"
 id = "artifacts/keyp"
-router = "expo-domain"
 
 [[integratedSkills]]
 name = "expo"
