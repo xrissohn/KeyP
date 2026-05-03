@@ -52,7 +52,7 @@ export default function ProfileScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const { user, logout } = useAuth();
-  const { interests, alerts, matches, savedAlerts } = useApp();
+  const { interests, alerts, matches, savedAlerts, plan, annualBilling } = useApp();
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -112,6 +112,16 @@ export default function ProfileScreen() {
           <MenuItem icon="bookmark" label="저장한 알림" onPress={() => router.push('/saved')} value={`${savedAlerts.length}개`} />
           <MenuItem icon="star" label="관심사 관리" onPress={() => router.push('/(tabs)/interests')} value={`${interests.length}개`} />
           <MenuItem icon="users" label="매칭 현황" onPress={() => router.push('/(tabs)/match')} value={`${acceptedMatches}개`} />
+        </View>
+
+        <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>구독</Text>
+          <MenuItem
+            icon="credit-card"
+            label="요금제"
+            onPress={() => router.push('/pricing')}
+            value={`${plan.toUpperCase()}${annualBilling ? ' · 연간' : ''}`}
+          />
         </View>
 
         <View style={[styles.section, { backgroundColor: colors.card, borderColor: colors.border }]}>

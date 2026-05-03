@@ -147,3 +147,14 @@ components/
 - NativeTabs with liquid glass on iOS 26+, BlurView tab bar on older iOS
 - Full Korean UI throughout
 - Interest add screen shows step-by-step agent pipeline visualization
+
+#### Pricing & Cost Optimization (May 2026)
+- **Plans**: Free (1h poll, 1 interest), Basic (15m, 5), Pro (10m, 15, 5 boosts/mo), Power (5m, 30, 30 boosts/mo); annual billing -20%.
+- **Default cadence**: client foreground refresh and server poller default to 15min (down from 2min) to match Basic-tier economics.
+- **Plan storage**: embedded in `tracked_interests.spec` JSONB (no schema migration). New interests inherit plan from device's existing rows. Client persists plan in AsyncStorage and syncs via `/push/set-plan`.
+- **Spec-bucket cache**: poller groups identical specs (sha256 of normalized topic/entities/location/sources) and shares Collector+Verifier results across all users for 5 min. Per-interest history is NOT used in the shared call (avoids cross-user dedup poisoning); per-interest dedup happens downstream via `seen_alerts`.
+- **In-flight coalescing**: concurrent sweeps for the same bucket await one shared Promise instead of firing duplicate LLM calls.
+- **Boost (속보)**: `/push/boost` runs `sweepOne(force=true)`; monthly per-device quota tracked in-memory (single-instance only — needs DB-backed counters before multi-replica deploy).
+- **Auth posture**: `/push/set-plan` requires the deviceId to exist in `push_devices` (403 otherwise). Full session-based auth deferred; a `device_plans` table will move billing state out of JSONB later.
+- **New endpoints**: `POST /push/set-plan {deviceId, plan}`, `POST /push/boost {deviceId, interestId}` — called via raw fetch from `lib/agents/ApiClient.ts` (no OpenAPI codegen).
+- **Screens**: `app/pricing.tsx` (4-card layout, monthly/annual toggle, BEST badge on Pro); profile tab links via 구독 → 요금제.

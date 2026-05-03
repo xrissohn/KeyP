@@ -12,7 +12,13 @@ import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
 import { initNotifications, notifyFreshAlerts } from '@/lib/notifications';
 import { getDeviceId } from '@/lib/deviceId';
-import { callTrackInterest, callUntrackInterest } from '@/lib/agents/ApiClient';
+import {
+  callTrackInterest,
+  callUntrackInterest,
+  callSetPlan,
+  callBoost,
+  type PlanTier,
+} from '@/lib/agents/ApiClient';
 import type { AgentStep } from '@workspace/api-client-react';
 import type { Alert, FeedbackType, Interest, InterestSpec, Match } from '@/types';
 
@@ -67,7 +73,24 @@ interface AppContextType {
   /** Polling interval (ms) for the background collector. */
   autoCollectIntervalMs: number;
   setAutoCollectIntervalMs: (ms: number) => void;
+  // ─── Plan / billing ───────────────────────────────────
+  /** Current subscription plan. */
+  plan: PlanTier;
+  /** Whether user picked annual billing (informational; -20% price). */
+  annualBilling: boolean;
+  /** Update plan + billing cadence; syncs to server so the poller picks up. */
+  setPlan: (plan: PlanTier, annual?: boolean) => Promise<void>;
+  /** Trigger an immediate sweep for one interest (속보). */
+  boostInterest: (interestId: string) => Promise<{
+    ok: boolean;
+    reason?: string;
+    used: number;
+    quota: number;
+    remaining: number;
+  }>;
 }
+
+export type { PlanTier };
 
 const AppContext = createContext<AppContextType | null>(null);
 
@@ -79,11 +102,14 @@ const STORAGE_KEYS = {
   ALERTS: '@keyp/v2/alerts',
   MATCHES: '@keyp/v2/matches',
   AUTO_COLLECT: '@keyp/v2/autoCollect',
+  PLAN: '@keyp/v2/plan',
 };
 
-// Real-time defaults: every 2 minutes the background collector sweeps every
-// active interest and only adds genuinely new alerts (deduped by URL/title).
-const DEFAULT_AUTO_COLLECT_INTERVAL_MS = 2 * 60 * 1000;
+// Polling default tightened from 2min → 15min to align with Basic-tier
+// economics ($0.084/cycle × 96 cycles/day = $8/interest/month). Plans can
+// override this on the server side; the client-side foreground refresh just
+// follows the same default cadence.
+const DEFAULT_AUTO_COLLECT_INTERVAL_MS = 15 * 60 * 1000;
 // Per-interest cooldown so manual + automatic refreshes don't double-fire.
 const REFRESH_COOLDOWN_MS = 60 * 1000;
 // How many alerts to ask the collector for per refresh sweep.
@@ -123,6 +149,8 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const [autoCollectIntervalMs, setAutoCollectIntervalMs] = useState<number>(
     DEFAULT_AUTO_COLLECT_INTERVAL_MS
   );
+  const [plan, setPlanState] = useState<PlanTier>('free');
+  const [annualBilling, setAnnualBilling] = useState<boolean>(false);
 
   // Refs needed inside the polling timer so the interval doesn't capture stale state.
   const interestsRef = useRef(interests);
@@ -206,12 +234,22 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         '@keyp/matches',
         '@keyp/autoCollect',
       ]).catch(() => {});
-      const [iStr, aStr, mStr, autoStr] = await Promise.all([
+      const [iStr, aStr, mStr, autoStr, planStr] = await Promise.all([
         AsyncStorage.getItem(STORAGE_KEYS.INTERESTS),
         AsyncStorage.getItem(STORAGE_KEYS.ALERTS),
         AsyncStorage.getItem(STORAGE_KEYS.MATCHES),
         AsyncStorage.getItem(STORAGE_KEYS.AUTO_COLLECT),
+        AsyncStorage.getItem(STORAGE_KEYS.PLAN),
       ]);
+      if (planStr) {
+        try {
+          const parsed = JSON.parse(planStr) as { plan?: PlanTier; annual?: boolean };
+          if (parsed.plan && ['free', 'basic', 'pro', 'power'].includes(parsed.plan)) {
+            setPlanState(parsed.plan);
+          }
+          if (typeof parsed.annual === 'boolean') setAnnualBilling(parsed.annual);
+        } catch {}
+      }
       const rawInterests: Interest[] = iStr ? JSON.parse(iStr) : MOCK_INTERESTS;
       const rawAlerts: Alert[] = aStr ? JSON.parse(aStr) : MOCK_ALERTS;
       const { interests: nInterests, alerts: nAlerts } = normalize(
@@ -668,6 +706,36 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
   const savedAlerts = alerts.filter((a) => a.isSaved);
   const unreadCount = alerts.filter((a) => !a.feedback).length;
 
+  // Persist plan + sync to server. Server stores it in the spec JSON of every
+  // tracked interest so the poller automatically uses the new cadence on its
+  // next tick — no restart required.
+  useEffect(() => {
+    if (!hydrated) return;
+    AsyncStorage.setItem(
+      STORAGE_KEYS.PLAN,
+      JSON.stringify({ plan, annual: annualBilling }),
+    ).catch(() => {});
+  }, [plan, annualBilling, hydrated]);
+
+  const setPlan = useCallback(
+    async (next: PlanTier, annual?: boolean) => {
+      setPlanState(next);
+      if (typeof annual === 'boolean') setAnnualBilling(annual);
+      try {
+        const deviceId = await getDeviceId();
+        await callSetPlan({ deviceId, plan: next });
+      } catch (err) {
+        console.warn('[KeyP] setPlan server sync failed', err);
+      }
+    },
+    [],
+  );
+
+  const boostInterest = useCallback(async (interestId: string) => {
+    const deviceId = await getDeviceId();
+    return callBoost({ deviceId, interestId });
+  }, []);
+
   return (
     <AppContext.Provider
       value={{
@@ -694,6 +762,10 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setAutoCollectEnabled,
         autoCollectIntervalMs,
         setAutoCollectIntervalMs,
+        plan,
+        annualBilling,
+        setPlan,
+        boostInterest,
       }}
     >
       {hydrated ? children : null}

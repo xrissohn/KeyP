@@ -106,4 +106,40 @@ export async function callPushTest(deviceId: string): Promise<{ ok: boolean; tic
   return postJson('/push/test', { deviceId }, 15000);
 }
 
+export type PlanTier = 'free' | 'basic' | 'pro' | 'power';
+
+export async function callSetPlan(args: {
+  deviceId: string;
+  plan: PlanTier;
+}): Promise<{
+  ok: boolean;
+  plan: PlanTier;
+  updatedCount: number;
+  interestCap: number;
+  boost: { used: number; quota: number; remaining: number };
+}> {
+  return postJson('/push/set-plan', args, 10000);
+}
+
+export async function callBoost(args: {
+  deviceId: string;
+  interestId: string;
+}): Promise<{
+  ok: boolean;
+  reason?: string;
+  used: number;
+  quota: number;
+  remaining: number;
+}> {
+  const base = getApiBase();
+  if (!base) throw new Error('API base URL unavailable');
+  const res = await fetch(`${base}/push/boost`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(args),
+  });
+  // 403/404 still carry a meaningful body (quota_exceeded etc.) — surface it.
+  return (await res.json()) as Awaited<ReturnType<typeof callBoost>>;
+}
+
 export type { AlertData, InterestSpecData, ParsedInterestResult, GeneratedAlertsResult };
