@@ -19,6 +19,7 @@
     "cors": "^2",
     "drizzle-orm": "catalog:",
     "express": "^5",
+    "google-trends-api": "^4.9.2",
     "pino": "^9",
     "pino-http": "^10"
   },

@@ -29,6 +29,7 @@ import {
   isProfileEmpty,
   type DeviceProfile,
 } from "../services/feedbackProfile";
+import { sniffTrends } from "../services/trendSniffer";
 
 const router: IRouter = Router();
 
@@ -452,6 +453,63 @@ Detective rules — apply ALL:
     });
   }
 
+  // ─── Trend Sniffer ────────────────────────────────────────────────
+  // Two LIVE signals (Google Trends + Perplexity meta-search) reorder the
+  // Planner's channel list to put data-corroborated platforms first AND
+  // append up to 3 net-new hot channels the Planner missed. This makes
+  // "where do we look first?" a data-driven decision instead of relying
+  // purely on the Planner LLM's frozen-in-training prior.
+  if ((spec.searchStrategy?.length ?? 0) > 0) {
+    const snifferStart = Date.now();
+    try {
+      const sniffed = await sniffTrends({
+        topic: spec.topic,
+        entities: spec.entities,
+        locationScope: spec.locationScope,
+        plannerStrategy: spec.searchStrategy ?? [],
+        logger: req.log,
+      });
+      spec.searchStrategy = sniffed.reordered;
+      const okSignals = sniffed.evidence
+        .filter((e) => e.ok)
+        .map((e) => e.source);
+      const failedSignals = sniffed.evidence
+        .filter((e) => !e.ok)
+        .map((e) => e.source);
+      const bumpedNote =
+        sniffed.bumpedChannels.length > 0
+          ? `우선순위 상승: ${sniffed.bumpedChannels.slice(0, 3).join(", ")}`
+          : "기존 순서 유지";
+      const addedNote =
+        sniffed.addedChannels.length > 0
+          ? ` · 신규 채널 ${sniffed.addedChannels.length}건 추가`
+          : "";
+      const cachedNote = sniffed.cached ? " (캐시 hit)" : "";
+      // Only call it a "success" when at least one signal was live AND
+      // it materially changed the strategy (bumped or added). Live
+      // signals that produced zero effect are still "partial" — the
+      // observer should know nothing actionable came back.
+      const materialChange =
+        sniffed.bumpedChannels.length > 0 || sniffed.addedChannels.length > 0;
+      steps.push({
+        agent: "TrendSniffer",
+        status: okSignals.length > 0 && materialChange ? "success" : "partial",
+        message: `실시간 신호 ${okSignals.length}/${sniffed.evidence.length} 활성${
+          failedSignals.length > 0 ? ` (${failedSignals.join(",")} 실패)` : ""
+        } · ${bumpedNote}${addedNote}${cachedNote}`,
+        durationMs: sniffed.cached ? 0 : sniffed.durationMs,
+      });
+    } catch (err) {
+      req.log.warn({ err }, "[trend-sniffer] unexpected failure (non-fatal)");
+      steps.push({
+        agent: "TrendSniffer",
+        status: "partial",
+        message: "실시간 신호 수집 실패 — Planner 순서 유지",
+        durationMs: Date.now() - snifferStart,
+      });
+    }
+  }
+
   const routerStart = Date.now();
   const topChannel = spec.searchStrategy?.[0]?.channel;
   steps.push({
@@ -655,6 +713,34 @@ router.post("/agents/generate-alerts", async (req, res) => {
         .filter(Boolean)
         .join(" / ");
       const sourcePref = spec.suggestedSources.join(", ");
+      // Re-sniff trends at refresh time too. The 6h in-memory cache means
+      // repeated poller sweeps within the same window pay zero cost; only
+      // the first refresh after a window boundary actually hits the
+      // network. This keeps the strategy in sync with where the topic is
+      // ACTUALLY hot RIGHT NOW (not where it was when the interest was
+      // first registered, which could be days/weeks ago).
+      try {
+        const sniffed = await sniffTrends({
+          topic: spec.topic,
+          entities: spec.entities,
+          locationScope: spec.locationScope,
+          plannerStrategy: spec.searchStrategy ?? [],
+          logger: req.log,
+        });
+        if (sniffed.reordered.length > 0) {
+          spec.searchStrategy = sniffed.reordered;
+          if (!sniffed.cached && (sniffed.bumpedChannels.length > 0 || sniffed.addedChannels.length > 0)) {
+            steps.push({
+              agent: "TrendSniffer",
+              status: "success",
+              message: `실시간 신호 갱신 · 우선 채널: ${spec.searchStrategy[0]?.channel ?? "n/a"}`,
+              durationMs: sniffed.durationMs,
+            });
+          }
+        }
+      } catch (err) {
+        req.log.warn({ err }, "[trend-sniffer] refresh-time sniff failed (non-fatal)");
+      }
       const deadHosts = await getRecentBlacklistedHosts(30);
       const deadHostsLine = deadHosts.length > 0
         ? `\nKNOWN-DEAD HOSTS (avoid items hosted on these domains): ${deadHosts.join(", ")}`
