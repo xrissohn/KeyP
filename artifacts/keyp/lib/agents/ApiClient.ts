@@ -47,37 +47,84 @@ export function buildSafeOpenUrl(
   return `${base}/redirect?${params.toString()}`;
 }
 
+// Sentinel error used so callers can branch on timeout if they care, while
+// the error message itself stays human-readable for logs/LogBox.
+class ApiTimeoutError extends Error {
+  readonly isTimeout = true;
+  constructor(path: string, ms: number) {
+    super(`API ${path} timed out after ${ms}ms`);
+    this.name = 'ApiTimeoutError';
+  }
+}
+
+function isAbortLike(err: unknown): boolean {
+  if (!err || typeof err !== 'object') return false;
+  const e = err as { name?: string; message?: string };
+  if (e.name === 'AbortError') return true;
+  const msg = e.message ?? '';
+  return /aborted|abort/i.test(msg) && /reason|signal/i.test(msg);
+}
+
 async function postJson<T>(path: string, body: unknown, timeoutMs = 30000): Promise<T> {
   const base = getApiBase();
   if (!base) throw new Error('API base URL unavailable');
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let timedOut = false;
+  // Pass an explicit reason so the resulting DOMException has a meaningful
+  // message instead of the opaque "signal is aborted without reason".
+  const timer = setTimeout(() => {
+    timedOut = true;
+    try {
+      // Some runtimes (older RN/Hermes) don't accept a reason arg — fall
+      // back to the no-arg form. Either way, the `timedOut` flag below is
+      // the source of truth.
+      (controller as AbortController & { abort: (reason?: unknown) => void }).abort(
+        new Error(`KeyP request timeout (${path})`),
+      );
+    } catch {
+      controller.abort();
+    }
+  }, timeoutMs);
+
   try {
     // Attach a SYNCHRONOUS .catch to the fetch promise so the rejection is
-    // never observed as "unhandled" by the host runtime. Some browser
-    // extensions hijack fetch and surface the rejection in a microtask BEFORE
-    // the surrounding async/await chain has had a chance to wire up its
-    // handlers — that's what causes the "Uncaught Error: Failed to fetch"
-    // overlay in Expo Web's LogBox even though our outer try/catch would
-    // otherwise swallow it. The synchronous .catch defuses that race.
+    // never observed as "unhandled" by the host runtime — both web (browser
+    // extensions hijacking fetch) and React Native (LogBox surfacing
+    // possibly-unhandled rejections) are otherwise prone to popping a red
+    // overlay even when the outer await would catch it.
     const res = await fetch(`${base}${path}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(body),
       signal: controller.signal,
     }).catch((err: unknown) => {
+      if (timedOut || isAbortLike(err)) {
+        throw new ApiTimeoutError(path, timeoutMs);
+      }
       const msg = err instanceof Error ? err.message : String(err);
       throw new Error(`Network request failed for ${path}: ${msg}`);
     });
     if (!res.ok) {
       throw new Error(`API ${path} failed with ${res.status}`);
     }
-    return (await res.json()) as T;
+    // Body parsing can also be aborted if the timer fires mid-stream; wrap
+    // it so we surface the same clean ApiTimeoutError instead of leaking a
+    // raw DOMException.
+    try {
+      return (await res.json()) as T;
+    } catch (err) {
+      if (timedOut || isAbortLike(err)) {
+        throw new ApiTimeoutError(path, timeoutMs);
+      }
+      throw err;
+    }
   } finally {
     clearTimeout(timer);
   }
 }
+
+export { ApiTimeoutError };
 
 export async function callParseInterest(
   rawText: string,

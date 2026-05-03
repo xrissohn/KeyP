@@ -19,29 +19,76 @@ import { AppProvider } from "@/context/AppContext";
 
 SplashScreen.preventAutoHideAsync();
 
-// Web-only safety net: swallow background-poller fetch failures so they don't
-// pop the Expo Web LogBox "Uncaught Error: Failed to fetch" overlay. Real
-// callers (generateAlertsForSpec, refreshInterest) already catch and fall back
-// gracefully — this just suppresses the spurious overlay caused by browser
-// extensions hijacking fetch and emitting the rejection before our async/await
-// chain attaches its handler. We log a warning so developers can still notice.
+// Patterns we treat as "transient network noise" and suppress at the
+// runtime level so they don't trip a red LogBox overlay. Every legitimate
+// caller already catches these and falls back gracefully (refresh poller,
+// agent pipeline, push registration, etc.) — this is purely a safety net
+// for cases where the rejection escapes the surrounding await chain (e.g.
+// browser extensions hijacking fetch on Web, or RN LogBox surfacing a
+// possibly-unhandled rejection that resolves a tick too late).
+const TRANSIENT_NETWORK_PATTERNS = [
+  /Failed to fetch/i,
+  /Network request failed/i,
+  /NetworkError/i,
+  /aborted/i,
+  /AbortError/i,
+  /timed out/i,
+  /KeyP request timeout/i,
+];
+function isTransientNetworkError(reason: unknown): boolean {
+  if (!reason) return false;
+  const r = reason as { message?: string; name?: string };
+  const msg = r.message ?? String(reason);
+  const name = r.name ?? "";
+  return TRANSIENT_NETWORK_PATTERNS.some((re) => re.test(msg) || re.test(name));
+}
+
+// Web safety net.
 if (typeof window !== "undefined" && !(window as { __keypFetchGuardInstalled?: boolean }).__keypFetchGuardInstalled) {
   (window as { __keypFetchGuardInstalled?: boolean }).__keypFetchGuardInstalled = true;
   window.addEventListener("unhandledrejection", (ev) => {
-    const reason = ev.reason as { message?: string; name?: string } | undefined;
-    const msg = reason?.message ?? String(reason ?? "");
-    const name = reason?.name ?? "";
-    if (
-      msg.includes("Failed to fetch") ||
-      msg.includes("Network request failed") ||
-      msg.includes("NetworkError") ||
-      name === "AbortError"
-    ) {
+    if (isTransientNetworkError(ev.reason)) {
       // eslint-disable-next-line no-console
-      console.warn("[KeyP] suppressed transient network rejection:", msg);
+      console.warn("[KeyP] suppressed transient network rejection:", ev.reason);
       ev.preventDefault();
     }
   });
+}
+
+// React Native safety net. RN routes unhandled rejections through the
+// `promise/setimmediate` polyfill — we tap it once so the LogBox doesn't
+// pop a "Uncaught Error: signal is aborted without reason" overlay every
+// time the 30s API timeout fires on a sleepy dev server. Wrapped in a
+// try/catch because the polyfill API is not part of any stable surface.
+if (typeof window === "undefined" || typeof document === "undefined") {
+  const g = globalThis as {
+    __keypRNGuardInstalled?: boolean;
+    HermesInternal?: unknown;
+  };
+  if (!g.__keypRNGuardInstalled) {
+    g.__keypRNGuardInstalled = true;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const tracking = require("promise/setimmediate/rejection-tracking");
+      tracking.enable({
+        allRejections: true,
+        onUnhandled: (id: number, error: unknown) => {
+          if (isTransientNetworkError(error)) {
+            // eslint-disable-next-line no-console
+            console.warn("[KeyP] suppressed transient RN rejection:", error);
+            return;
+          }
+          // eslint-disable-next-line no-console
+          console.warn(`Possible unhandled promise rejection (id: ${id}):`, error);
+        },
+        onHandled: () => {},
+      });
+    } catch {
+      // Best-effort — if the polyfill isn't available, fall back to RN's
+      // default behavior. The user-visible impact is at most a LogBox
+      // warning, never a functional bug.
+    }
+  }
 }
 
 const queryClient = new QueryClient();
