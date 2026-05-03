@@ -1,6 +1,7 @@
 import { Feather } from '@expo/vector-icons';
 import { useLocalSearchParams, useRouter } from 'expo-router';
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
+import * as Haptics from 'expo-haptics';
 import {
   ActivityIndicator,
   Alert as RNAlert,
@@ -60,8 +61,12 @@ export default function InterestDetailScreen() {
     refreshInterest,
     refreshingInterestIds,
     autoCollectEnabled,
+    plan,
+    boostInterest,
   } = useApp();
   const isRefreshing = id ? refreshingInterestIds.includes(id) : false;
+  const [isBoosting, setIsBoosting] = useState(false);
+  const boostEligible = plan === 'pro' || plan === 'power';
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -93,6 +98,50 @@ export default function InterestDetailScreen() {
   }
 
   const spec = interest.spec;
+
+  const onPressBoost = async () => {
+    if (!id || isBoosting) return;
+    if (!boostEligible) {
+      RNAlert.alert(
+        '속보는 Pro 이상 플랜 전용이에요',
+        '월 5회(Pro) / 30회(Power) 즉시 갱신 알림을 받을 수 있어요.',
+        [
+          { text: '취소', style: 'cancel' },
+          { text: '요금제 보기', onPress: () => router.push('/pricing') },
+        ],
+      );
+      return;
+    }
+    setIsBoosting(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium).catch(() => {});
+    try {
+      const r = await boostInterest(id);
+      if (Platform.OS !== 'web') {
+        if (r.ok) {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success).catch(() => {});
+          RNAlert.alert(
+            '속보 갱신 완료',
+            `이번 달 남은 횟수: ${r.remaining}/${r.quota}`,
+          );
+        } else {
+          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning).catch(() => {});
+          const msg =
+            r.reason === 'quota'
+              ? `이번 달 속보 횟수를 모두 사용했어요 (${r.used}/${r.quota}).`
+              : r.reason === 'plan'
+                ? '속보는 Pro 이상 플랜에서 사용할 수 있어요.'
+                : '속보 갱신에 실패했어요. 잠시 후 다시 시도해 주세요.';
+          RNAlert.alert('속보 사용 불가', msg);
+        }
+      }
+    } catch {
+      if (Platform.OS !== 'web') {
+        RNAlert.alert('오류', '속보 요청에 실패했어요.');
+      }
+    } finally {
+      setIsBoosting(false);
+    }
+  };
 
   const onPressRefresh = async () => {
     if (!id || isRefreshing) return;
@@ -187,28 +236,54 @@ export default function InterestDetailScreen() {
             </Text>
           </View>
         </View>
-        <TouchableOpacity
-          onPress={onPressRefresh}
-          disabled={isRefreshing}
-          style={[
-            styles.refreshBtn,
-            {
-              backgroundColor: isRefreshing ? colors.secondary : interest.color + '20',
-              borderColor: interest.color + '50',
-              opacity: isRefreshing ? 0.6 : 1,
-            },
-          ]}
-          activeOpacity={0.8}
-        >
-          {isRefreshing ? (
-            <ActivityIndicator size="small" color={interest.color} />
-          ) : (
-            <Feather name="refresh-cw" size={14} color={interest.color} />
-          )}
-          <Text style={[styles.refreshBtnText, { color: interest.color }]}>
-            {isRefreshing ? '수집 중...' : '지금 수집'}
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.actionBtnRow}>
+          <TouchableOpacity
+            onPress={onPressBoost}
+            disabled={isBoosting || isRefreshing}
+            style={[
+              styles.refreshBtn,
+              {
+                backgroundColor: isBoosting ? colors.secondary : '#EF444420',
+                borderColor: '#EF444450',
+                opacity: isBoosting || isRefreshing ? 0.6 : 1,
+              },
+            ]}
+            activeOpacity={0.8}
+            accessibilityRole="button"
+            accessibilityLabel="속보 즉시 갱신"
+          >
+            {isBoosting ? (
+              <ActivityIndicator size="small" color="#EF4444" />
+            ) : (
+              <Feather name="zap" size={14} color="#EF4444" />
+            )}
+            <Text style={[styles.refreshBtnText, { color: '#EF4444' }]}>
+              {isBoosting ? '속보 중...' : '속보'}
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={onPressRefresh}
+            disabled={isRefreshing || isBoosting}
+            style={[
+              styles.refreshBtn,
+              {
+                backgroundColor: isRefreshing ? colors.secondary : interest.color + '20',
+                borderColor: interest.color + '50',
+                opacity: isRefreshing || isBoosting ? 0.6 : 1,
+              },
+            ]}
+            activeOpacity={0.8}
+          >
+            {isRefreshing ? (
+              <ActivityIndicator size="small" color={interest.color} />
+            ) : (
+              <Feather name="refresh-cw" size={14} color={interest.color} />
+            )}
+            <Text style={[styles.refreshBtnText, { color: interest.color }]}>
+              {isRefreshing ? '수집 중...' : '지금 수집'}
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {interestAlerts.length > 0 && (
@@ -473,4 +548,8 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_600SemiBold',
   },
   emptyWrap: { height: 300 },
+  actionBtnRow: {
+    flexDirection: 'row',
+    gap: 6,
+  },
 });
