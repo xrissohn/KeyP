@@ -1,8 +1,73 @@
 uploads = []
-outputs = []
 
 [[generated]]
 id = "-ubcvMkzEweQqAQucz4qw"
 uri = "file://artifacts/keyp/assets/images/icon.png"
 type = "image"
 title = "generated_image"
+
+[[outputs]]
+id = "u_DvYN-sEnOGPSLUR9niy"
+uri = "file://screenshots/keyp-01-onboarding.jpg"
+type = "image"
+title = "01 — 온보딩 (언어 선택 + 핵심 가치)"
+
+[[outputs]]
+id = "V7TZmYQj-rWYg4rJxUlgB"
+uri = "file://screenshots/keyp-02-login.jpg"
+type = "image"
+title = "02 — 로그인 (이메일 + Google SSO)"
+
+[[outputs]]
+id = "gi0Iel9s0JsWnfb6yNt53"
+uri = "file://screenshots/keyp-03-register.jpg"
+type = "image"
+title = "03 — 회원가입"
+
+[[outputs]]
+id = "2yrpEWMTzt1vzycMop--l"
+uri = "file://screenshots/keyp-04-home.jpg"
+type = "image"
+title = "04 — 피드 (속보 알림 홈)"
+
+[[outputs]]
+id = "0Im4VaflgAYKRppeIeo6N"
+uri = "file://screenshots/keyp-05-interests.jpg"
+type = "image"
+title = "05 — 관심사 목록"
+
+[[outputs]]
+id = "cWGX3YA0MapXLNyPDVwCs"
+uri = "file://screenshots/keyp-06-add-interest.jpg"
+type = "image"
+title = "06 — 관심사 추가 (AI 자연어 입력)"
+
+[[outputs]]
+id = "yXySJU9IR0GfCnb8ELh4h"
+uri = "file://screenshots/keyp-07-profile.jpg"
+type = "image"
+title = "07 — 프로필"
+
+[[outputs]]
+id = "PGAnwXdOp1D09IXo6PZNe"
+uri = "file://screenshots/keyp-08-pricing.jpg"
+type = "image"
+title = "08 — 요금제"
+
+[[outputs]]
+id = "sXyyZYIk39mWO1KA_ucmC"
+uri = "file://screenshots/keyp-09-feedback.jpg"
+type = "image"
+title = "09 — 피드백"
+
+[[outputs]]
+id = "KQ5UFn09PDvQQctQWzhVx"
+uri = "file://screenshots/keyp-10-saved.jpg"
+type = "image"
+title = "10 — 저장한 알림"
+
+[[outputs]]
+id = "n3DpFkXQKd7Vd9AmuEoa9"
+uri = "file://screenshots/keyp-11-privacy.jpg"
+type = "image"
+title = "11 — 개인정보처리방침"
