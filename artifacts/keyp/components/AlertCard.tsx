@@ -134,6 +134,14 @@ export default function AlertCard({ alert, showInterestTag = true }: Props) {
 
       <View style={styles.metaRow}>
         <ConfidenceBadge confidence={alert.confidence} freshness={alert.freshness} compact />
+        {alert.duplicateSources && alert.duplicateSources.length > 0 && (
+          <View style={[styles.dupPill, { backgroundColor: colors.primary + '18', borderColor: colors.primary + '40' }]}>
+            <Feather name="layers" size={10} color={colors.primary} />
+            <Text style={[styles.dupPillText, { color: colors.primary }]}>
+              {t('alert.duplicateSources', { n: alert.duplicateSources.length })}
+            </Text>
+          </View>
+        )}
         <View style={styles.spacer} />
         <View style={styles.tags}>
           {alert.tags.slice(0, 2).map((tag) => (
@@ -235,4 +243,6 @@ const styles = StyleSheet.create({
   sourceLinkText: { flex: 1, fontSize: 12, fontFamily: 'Inter_600SemiBold' },
   actions: { flexDirection: 'row', borderTopWidth: 1, paddingTop: 10, gap: 4 },
   actionBtn: { flex: 1, alignItems: 'center', justifyContent: 'center', paddingVertical: 6, borderRadius: 8 },
+  dupPill: { flexDirection: 'row', alignItems: 'center', gap: 4, marginLeft: 8, paddingHorizontal: 7, paddingVertical: 3, borderRadius: 8, borderWidth: 1 },
+  dupPillText: { fontSize: 10, fontFamily: 'Inter_600SemiBold' },
 });

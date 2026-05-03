@@ -39,6 +39,10 @@ import {
   type DeviceProfile,
 } from "../services/feedbackProfile";
 import { sniffTrends } from "../services/trendSniffer";
+import { reserveQuota } from "../services/rateLimit";
+import { pickVariant } from "../services/experiments";
+import { db, sourcePreferencesTable } from "@workspace/db";
+import { eq } from "drizzle-orm";
 
 const router: IRouter = Router();
 
@@ -680,6 +684,31 @@ router.post("/agents/generate-alerts", async (req, res) => {
     typeof rawBody["userLanguage"] === "string" ? (rawBody["userLanguage"] as string) : "ko";
   const userLanguage: "ko" | "en" =
     userLanguageRaw === "en" ? "en" : "ko";
+  const interestIdRaw =
+    typeof rawBody["interestId"] === "string" ? (rawBody["interestId"] as string) : "";
+  const interestId = interestIdRaw.length > 0 && interestIdRaw.length <= 128 ? interestIdRaw : null;
+
+  // ─── Rate limit gate (per-device daily quota) ─────────────────────────
+  // Loopback / poller calls (no deviceId) bypass quota — they're already
+  // cost-controlled by plan-aware polling cadence on the server.
+  const quota = await reserveQuota(deviceId, plan);
+  if (!quota.allowed) {
+    res.status(429).json({
+      error: "quota_exceeded",
+      used: quota.used,
+      limit: quota.limit,
+      remaining: 0,
+    });
+    return;
+  }
+
+  // ─── A/B: verifier_lenient ────────────────────────────────────────────
+  // 50/50 cohort. treatment = drop confidence threshold from 50 → 45 so we
+  // include slightly-less-confident candidates and measure downstream
+  // engagement. Deterministic per device, so the same user sees a stable
+  // experience across sweeps.
+  const verifierVariant = pickVariant(deviceId, "verifier_lenient", 50);
+  const verifierConfidenceThreshold = verifierVariant === "treatment" ? 45 : 50;
 
   // ─── Freshness floor (KeyP prime directive #2) ────────────────────────
   // The client passes the ISO timestamp of the most recent event already
@@ -1059,6 +1088,43 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
   }
 
   // ============================================================
+  // Source preferences — apply per-interest block list BEFORE we spend
+  // any Verifier tokens. Boost preferences are surfaced as a reputation
+  // bump applied during the Selector stage below (see boostHosts set).
+  // ============================================================
+  const boostHosts = new Set<string>();
+  if (interestId && candidates.length > 0) {
+    try {
+      const prefs = await db
+        .select()
+        .from(sourcePreferencesTable)
+        .where(eq(sourcePreferencesTable.interestId, interestId));
+      const blockHosts = new Set<string>();
+      for (const p of prefs) {
+        if (p.mode === "block") blockHosts.add(p.host);
+        else if (p.mode === "boost") boostHosts.add(p.host);
+      }
+      if (blockHosts.size > 0) {
+        const before = candidates.length;
+        candidates = candidates.filter((c) => {
+          const h = hostFromUrl(c.url);
+          return !(h && blockHosts.has(h));
+        });
+        if (candidates.length !== before) {
+          steps.push({
+            agent: "Selector",
+            status: candidates.length > 0 ? "partial" : "failed",
+            message: `사용자 차단 소스 제외: ${before - candidates.length}건`,
+            durationMs: 0,
+          });
+        }
+      }
+    } catch (err) {
+      req.log.warn({ err, interestId }, "[source-pref] lookup failed (non-fatal)");
+    }
+  }
+
+  // ============================================================
   // Source reputation — load per-host stats (global + per-device) so
   // BOTH the Selector pre-rank and the Verifier prompt can use them.
   // Survives interest deletion: keyed by host, not interestId.
@@ -1099,7 +1165,8 @@ Return up to ${requested} items, sorted with the most content-recent first (smal
         });
         const host = hostFromUrl(c.url);
         const repBoost = host ? reputationScore(reputationByHost.get(host)) : 0;
-        return { c, score: baseScore + repBoost };
+        const userBoost = host && boostHosts.has(host) ? 25 : 0;
+        return { c, score: baseScore + repBoost + userBoost };
       });
       scored.sort((a, b) => b.score - a.score);
       candidates = scored.slice(0, KEEP_N).map((x) => x.c);
@@ -1237,7 +1304,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
             100,
             Math.max(0, Math.round(Number(v.confidence) || 70)),
           );
-          if (confidence < 50) return null;
+          if (confidence < verifierConfidenceThreshold) return null;
           const ageMin = effectiveAge(c);
           const freshness: AlertData["freshness"] =
             ageMin < 10
@@ -1306,7 +1373,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
             typeof verifications[i] === "object" && verifications[i] !== null
               ? (verifications[i] as Record<string, unknown>)
               : {};
-          if (v.include === false || (Number(v.confidence) || 70) < 50) {
+          if (v.include === false || (Number(v.confidence) || 70) < verifierConfidenceThreshold) {
             return {
               title: c.title.slice(0, 80),
               confidence: Number(v.confidence) || 0,
@@ -1347,7 +1414,7 @@ Return exactly ${candidates.length} verifications in the same order.`,
             ? (verifications[i] as Record<string, unknown>)
             : {};
         const conf = Math.min(100, Math.max(0, Math.round(Number(v.confidence) || 0)));
-        const include = v.include !== false && conf >= 50;
+        const include = v.include !== false && conf >= verifierConfidenceThreshold;
         const slot = repBumps.get(host) ?? {
           verifierPassCount: 0,
           verifierRejectCount: 0,
@@ -1571,6 +1638,37 @@ Return exactly ${candidates.length} verifications in the same order.`,
     durationMs: Date.now() - delivererStart + 5,
   });
 
+  // ─── Cluster duplicates by host ───────────────────────────────────────
+  // Group surviving alerts by URL host. Keep the first per host (already
+  // sorted by Deliverer) and stash the rest as `duplicateSources` on it
+  // so the client can render a "+N other sources" pill. The DB shape is
+  // unchanged — this is a response-only enrichment.
+  const clusterMap = new Map<string, AlertData[]>();
+  const clusteredAlerts: AlertData[] = [];
+  for (const a of alerts) {
+    const h = hostFromUrl(a.source.url) ?? `__nohost__:${a.source.url ?? a.title}`;
+    const existing = clusterMap.get(h);
+    if (existing) {
+      existing.push(a);
+    } else {
+      const arr: AlertData[] = [a];
+      clusterMap.set(h, arr);
+      clusteredAlerts.push(a);
+    }
+  }
+  const duplicatesByPrimary = new Map<AlertData, AlertData["source"][]>();
+  for (const arr of clusterMap.values()) {
+    if (arr.length > 1) {
+      const [primary, ...rest] = arr;
+      if (!primary) continue;
+      duplicatesByPrimary.set(
+        primary,
+        rest.map((d) => d.source),
+      );
+    }
+  }
+  alerts = clusteredAlerts;
+
   const result: GeneratedAlertsResult = { alerts, steps };
   const validation = GenerateAlertsResponse.safeParse(result);
   if (!validation.success) {
@@ -1593,7 +1691,16 @@ Return exactly ${candidates.length} verifications in the same order.`,
     res.json(GenerateAlertsResponse.parse(failedResult));
     return;
   }
-  res.json(validation.data);
+  // Attach duplicate-source clusters AFTER zod validation (zod strips
+  // unknown fields, so we re-add them to the validated payload). The
+  // client treats `duplicateSources` as optional and degrades gracefully.
+  const enrichedAlerts = validation.data.alerts.map((a, idx) => {
+    const original = alerts[idx];
+    const dups = original ? duplicatesByPrimary.get(original) : undefined;
+    if (!dups || dups.length === 0) return a;
+    return { ...a, duplicateSources: dups };
+  });
+  res.json({ ...validation.data, alerts: enrichedAlerts });
 });
 
 export default router;

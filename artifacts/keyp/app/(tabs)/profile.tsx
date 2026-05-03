@@ -196,6 +196,21 @@ export default function ProfileScreen() {
             <View style={{ flex: 1 }} />
             <Text style={[styles.menuValue, { color: colors.mutedForeground }]}>{t('profile.item.agentStatusValue')}</Text>
           </View>
+          <MenuItem
+            icon="message-square"
+            label={t('profile.item.feedback')}
+            onPress={() => router.push('/feedback')}
+          />
+          <MenuItem
+            icon="shield"
+            label={t('profile.item.privacy')}
+            onPress={() => router.push('/legal/privacy')}
+          />
+          <MenuItem
+            icon="file-text"
+            label={t('profile.item.terms')}
+            onPress={() => router.push('/legal/terms')}
+          />
         </View>
 
         <TouchableOpacity

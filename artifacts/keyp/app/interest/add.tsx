@@ -17,6 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { callTrendingInterests, type TrendingInterestItem } from '@/lib/agents/ApiClient';
 import type { AgentStep } from '@workspace/api-client-react';
 import type { InterestSpec } from '@/types';
 
@@ -42,6 +43,17 @@ export default function AddInterestScreen() {
   const [spec, setSpec] = useState<InterestSpec | null>(null);
   const [steps, setSteps] = useState<AgentStep[]>([]);
   const requestIdRef = useRef(0);
+  const [trending, setTrending] = useState<TrendingInterestItem[]>([]);
+
+  React.useEffect(() => {
+    let alive = true;
+    callTrendingInterests().then((items) => {
+      if (alive) setTrending(items);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -225,6 +237,31 @@ export default function AddInterestScreen() {
                 </TouchableOpacity>
               </View>
             </View>
+
+            {trending.length > 0 && (
+              <View style={styles.examplesSection}>
+                <Text style={[styles.examplesTitle, { color: colors.mutedForeground }]}>
+                  {t('discover.trending.title')}
+                </Text>
+                <View style={styles.trendingRow}>
+                  {trending.slice(0, 12).map((item) => (
+                    <TouchableOpacity
+                      key={item.label}
+                      style={[styles.trendingChip, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}
+                      onPress={() => setText(item.label)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[styles.trendingText, { color: colors.primary }]} numberOfLines={1}>
+                        {item.label}
+                      </Text>
+                      <Text style={[styles.trendingCount, { color: colors.primary }]}>
+                        {item.count}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            )}
 
             <View style={styles.examplesSection}>
               <Text style={[styles.examplesTitle, { color: colors.mutedForeground }]}>
@@ -482,6 +519,19 @@ const styles = StyleSheet.create({
     fontFamily: 'Inter_400Regular',
     lineHeight: 18,
   },
+  trendingRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+  trendingChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxWidth: '100%',
+  },
+  trendingText: { fontSize: 12, fontFamily: 'Inter_600SemiBold', maxWidth: 200 },
+  trendingCount: { fontSize: 10, fontFamily: 'Inter_700Bold', opacity: 0.7 },
   analyzingSection: {
     alignItems: 'center',
     gap: 20,

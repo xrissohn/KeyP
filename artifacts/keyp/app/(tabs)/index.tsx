@@ -2,6 +2,7 @@ import { Feather } from '@expo/vector-icons';
 import { useRouter } from 'expo-router';
 import React, { useState } from 'react';
 import {
+  Alert as RNAlert,
   FlatList,
   Image,
   Platform,
@@ -17,17 +18,37 @@ import EmptyState from '@/components/EmptyState';
 import UndoToast from '@/components/UndoToast';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { ApiRateLimitError } from '@/lib/agents/ApiClient';
 import type { Interest } from '@/types';
 
 export default function FeedScreen() {
   const colors = useColors();
   const insets = useSafeAreaInsets();
   const router = useRouter();
-  const { alerts, interests, refreshAllInterests, markInterestViewed } = useApp();
+  const {
+    alerts,
+    interests,
+    refreshAllInterests,
+    markInterestViewed,
+    autoCollectIntervalMs,
+    lastBackgroundRunAt,
+  } = useApp();
   const { t } = useI18n();
   const [selectedInterest, setSelectedInterest] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const listRef = React.useRef<FlatList>(null);
+
+  const formatHHMM = (date: Date): string => {
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    return `${hh}:${mm}`;
+  };
+  const nextRefreshAt = React.useMemo(() => {
+    const baseMs = lastBackgroundRunAt
+      ? new Date(lastBackgroundRunAt).getTime() + autoCollectIntervalMs
+      : Date.now() + autoCollectIntervalMs;
+    return formatHHMM(new Date(baseMs));
+  }, [lastBackgroundRunAt, autoCollectIntervalMs]);
 
   const handleLogoPress = () => {
     setSelectedInterest(null);
@@ -50,8 +71,23 @@ export default function FeedScreen() {
     setRefreshing(true);
     try {
       await refreshAllInterests();
-    } catch {
-      // swallow; the interest cards surface per-source errors
+    } catch (err) {
+      // refreshAllInterests itself swallows per-interest errors, but we still
+      // surface the daily-quota signal here in case it bubbles up to the
+      // sweep level. The friendly toast directs the user to the pricing page.
+      if (err instanceof ApiRateLimitError) {
+        RNAlert.alert(
+          t('feed.rateLimited.title'),
+          t('feed.rateLimited.body', {
+            used: err.used ?? '?',
+            quota: err.quota ?? '?',
+          }),
+          [
+            { text: t('common.cancel'), style: 'cancel' },
+            { text: t('feed.rateLimited.upgrade'), onPress: () => router.push('/pricing') },
+          ],
+        );
+      }
     } finally {
       setRefreshing(false);
     }
@@ -150,8 +186,31 @@ export default function FeedScreen() {
               icon="bell"
               title={t('feed.empty.title')}
               subtitle={t('feed.empty.subtitle')}
-              actionLabel={t('feed.empty.action')}
-              onAction={() => router.push('/interest/add')}
+              hint={
+                interests.length > 0
+                  ? t('feed.empty.nextRefresh', { time: nextRefreshAt })
+                  : undefined
+              }
+              actionLabel={
+                interests.length === 0
+                  ? t('feed.empty.action')
+                  : refreshing
+                    ? t('feed.refreshing')
+                    : t('feed.empty.retry')
+              }
+              onAction={
+                interests.length === 0
+                  ? () => router.push('/interest/add')
+                  : refreshing
+                    ? undefined
+                    : handleRefresh
+              }
+              secondaryActionLabel={
+                interests.length > 0 ? t('feed.empty.action') : undefined
+              }
+              onSecondaryAction={
+                interests.length > 0 ? () => router.push('/interest/add') : undefined
+              }
             />
           </View>
         }

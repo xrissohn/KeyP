@@ -133,6 +133,21 @@ export async function callParseInterest(
   return postJson<ParsedInterestResult>('/agents/parse-interest', { rawText, userId });
 }
 
+export class ApiRateLimitError extends Error {
+  readonly isRateLimit = true;
+  readonly status = 429;
+  readonly retryAfterSec?: number;
+  readonly used?: number;
+  readonly quota?: number;
+  constructor(opts: { retryAfterSec?: number; used?: number; quota?: number; message?: string }) {
+    super(opts.message ?? 'rate_limited');
+    this.name = 'ApiRateLimitError';
+    this.retryAfterSec = opts.retryAfterSec;
+    this.used = opts.used;
+    this.quota = opts.quota;
+  }
+}
+
 export async function callGenerateAlerts(
   spec: InterestSpecData,
   count = 3,
@@ -148,20 +163,160 @@ export async function callGenerateAlerts(
    * codegen ripple) — see /agents/generate-alerts handler.
    */
   latestKnownEventAt?: string,
+  /**
+   * Stable interest identifier so the server can apply per-interest source
+   * preferences (block/boost) and per-device daily quota tracking. Sniffed
+   * off raw body server-side (no codegen ripple).
+   */
+  interestId?: string,
 ): Promise<GeneratedAlertsResult> {
-  return postJson<GeneratedAlertsResult>(
-    '/agents/generate-alerts',
-    {
-      spec,
-      count,
-      existingAlertSummaries,
-      ...(deviceId ? { deviceId } : {}),
-      ...(plan ? { plan } : {}),
-      ...(userLanguage ? { userLanguage } : {}),
-      ...(latestKnownEventAt ? { latestKnownEventAt } : {}),
-    },
-    90000
-  );
+  const base = getApiBase();
+  if (!base) throw new Error('API base URL unavailable');
+  // We hand-roll the fetch here (instead of postJson) because we need to
+  // surface 429 quota responses as a typed error so the UI can show a
+  // friendly toast — postJson treats every non-2xx as a generic Error.
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), 90000);
+  try {
+    const res = await fetch(`${base}/agents/generate-alerts`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        spec,
+        count,
+        existingAlertSummaries,
+        ...(deviceId ? { deviceId } : {}),
+        ...(plan ? { plan } : {}),
+        ...(userLanguage ? { userLanguage } : {}),
+        ...(latestKnownEventAt ? { latestKnownEventAt } : {}),
+        ...(interestId ? { interestId } : {}),
+      }),
+      signal: controller.signal,
+    });
+    if (res.status === 429) {
+      // Server returns `{ used, limit, remaining }`; we accept `quota` too as
+      // a forward-compatible alias so future protocol tweaks don't silently
+      // strand the toast UI on `?` placeholders.
+      let body: {
+        used?: number;
+        limit?: number;
+        quota?: number;
+        retryAfterSec?: number;
+      } = {};
+      try {
+        body = await res.json();
+      } catch {}
+      const ra = parseInt(res.headers.get('retry-after') ?? '', 10);
+      throw new ApiRateLimitError({
+        retryAfterSec: Number.isFinite(ra) ? ra : body.retryAfterSec,
+        used: body.used,
+        quota: body.quota ?? body.limit,
+      });
+    }
+    if (!res.ok) {
+      throw new Error(`API /agents/generate-alerts failed with ${res.status}`);
+    }
+    return (await res.json()) as GeneratedAlertsResult;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+// ───────────────────────── Beta feedback / reports ─────────────────────────
+
+export async function callFeedbackReport(args: {
+  deviceId: string;
+  alertId?: string;
+  interestId?: string;
+  kind?: 'feedback' | 'abuse' | 'bug' | 'other';
+  body: string;
+  contact?: string;
+}): Promise<{ ok: boolean }> {
+  try {
+    return await postJson<{ ok: boolean }>('/feedback/report', args, 10000);
+  } catch (err) {
+    console.warn('[KeyP] callFeedbackReport failed:', err);
+    return { ok: false };
+  }
+}
+
+// ───────────────────────── Discovery (trending) ─────────────────────────
+
+export interface TrendingInterestItem {
+  label: string;
+  count: number;
+}
+
+export async function callTrendingInterests(): Promise<TrendingInterestItem[]> {
+  const base = getApiBase();
+  if (!base) return [];
+  try {
+    const res = await fetch(`${base}/discover/trending-interests`);
+    if (!res.ok) return [];
+    const data = (await res.json()) as { items?: TrendingInterestItem[] };
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [];
+  }
+}
+
+// ───────────────────────── Source preferences (per-interest) ─────────────
+
+export interface SourceStatItem {
+  host: string;
+  count: number;
+  mode: 'block' | 'boost' | null;
+}
+
+export async function callSourceStats(
+  interestId: string,
+  deviceId: string,
+): Promise<SourceStatItem[]> {
+  const base = getApiBase();
+  if (!base || !deviceId) return [];
+  try {
+    const url =
+      `${base}/interests/${encodeURIComponent(interestId)}/source-stats` +
+      `?deviceId=${encodeURIComponent(deviceId)}`;
+    const res = await fetch(url, {
+      headers: { 'x-device-id': deviceId },
+    });
+    if (!res.ok) return [];
+    const data = (await res.json()) as { items?: SourceStatItem[] };
+    return Array.isArray(data.items) ? data.items : [];
+  } catch {
+    return [];
+  }
+}
+
+export async function callSetSourcePref(args: {
+  interestId: string;
+  deviceId: string;
+  host: string;
+  mode: 'block' | 'boost' | 'clear';
+}): Promise<{ ok: boolean }> {
+  const base = getApiBase();
+  if (!base || !args.deviceId) return { ok: false };
+  try {
+    const res = await fetch(
+      `${base}/interests/${encodeURIComponent(args.interestId)}/source-pref`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-device-id': args.deviceId,
+        },
+        body: JSON.stringify({
+          host: args.host,
+          mode: args.mode,
+          deviceId: args.deviceId,
+        }),
+      },
+    );
+    return { ok: res.ok };
+  } catch {
+    return { ok: false };
+  }
 }
 
 // Best-effort feedback ping. Never throws — we don't want a network blip to

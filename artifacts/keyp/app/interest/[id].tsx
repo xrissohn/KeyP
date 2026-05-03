@@ -17,7 +17,13 @@ import AlertCard from '@/components/AlertCard';
 import EmptyState from '@/components/EmptyState';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { getDeviceId } from '@/lib/deviceId';
 import { relativeTime as relTime, t as translate, type Language } from '@/lib/i18n';
+import {
+  callSourceStats,
+  callSetSourcePref,
+  type SourceStatItem,
+} from '@/lib/agents/ApiClient';
 
 function fmtRelative(iso: string | null | undefined, lang: Language): string {
   if (!iso) return translate('common.none', lang);
@@ -45,6 +51,8 @@ export default function InterestDetailScreen() {
   const [isBoosting, setIsBoosting] = useState(false);
   const boostEligible = plan === 'pro' || plan === 'power';
   const { t, language } = useI18n();
+  const [sourceStats, setSourceStats] = useState<SourceStatItem[]>([]);
+  const [sourceStatsLoaded, setSourceStatsLoaded] = useState(false);
 
   const topInset = Platform.OS === 'web' ? 67 : insets.top;
   const bottomInset = Platform.OS === 'web' ? 34 : insets.bottom;
@@ -55,6 +63,41 @@ export default function InterestDetailScreen() {
     .sort(
       (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()
     );
+
+  useEffect(() => {
+    if (!id) return;
+    let alive = true;
+    (async () => {
+      const deviceId = await getDeviceId().catch(() => '');
+      if (!alive || !deviceId) return;
+      const items = await callSourceStats(id, deviceId);
+      if (alive) {
+        setSourceStats(items);
+        setSourceStatsLoaded(true);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [id, interestAlerts.length]);
+
+  const onSetSourcePref = async (
+    host: string,
+    mode: 'block' | 'boost' | 'clear',
+  ) => {
+    if (!id) return;
+    Haptics.selectionAsync().catch(() => {});
+    setSourceStats((prev) =>
+      prev.map((s) =>
+        s.host === host
+          ? { ...s, mode: mode === 'clear' ? null : mode }
+          : s,
+      ),
+    );
+    const deviceId = await getDeviceId().catch(() => '');
+    if (!deviceId) return;
+    await callSetSourcePref({ interestId: id, deviceId, host, mode });
+  };
   const newCount = id ? getNewAlertCount(id) : 0;
 
   useEffect(() => {
@@ -264,6 +307,95 @@ export default function InterestDetailScreen() {
         </View>
       </View>
 
+      {sourceStatsLoaded && (
+        <View style={[styles.specSection, { backgroundColor: colors.card, borderColor: colors.border }]}>
+          <Text style={[styles.sectionTitle, { color: colors.mutedForeground }]}>
+            {t('sourcePref.title')}
+          </Text>
+          {sourceStats.length === 0 ? (
+            <Text style={[styles.collectStatusSub, { color: colors.mutedForeground }]}>
+              {t('sourcePref.empty')}
+            </Text>
+          ) : (
+            sourceStats.slice(0, 8).map((s) => (
+              <View key={s.host} style={styles.sourcePrefRow}>
+                <View style={{ flex: 1, minWidth: 0 }}>
+                  <Text
+                    style={[styles.sourcePrefHost, { color: colors.foreground }]}
+                    numberOfLines={1}
+                  >
+                    {s.host}
+                  </Text>
+                  <Text style={[styles.sourcePrefMeta, { color: colors.mutedForeground }]}>
+                    {t('sourcePref.alertCount', { n: s.count })}
+                    {s.mode === 'boost' ? ` · ${t('sourcePref.modeBoost')}` : ''}
+                    {s.mode === 'block' ? ` · ${t('sourcePref.modeBlock')}` : ''}
+                  </Text>
+                </View>
+                <View style={styles.sourcePrefBtnRow}>
+                  <TouchableOpacity
+                    onPress={() =>
+                      onSetSourcePref(s.host, s.mode === 'boost' ? 'clear' : 'boost')
+                    }
+                    style={[
+                      styles.sourcePrefBtn,
+                      {
+                        backgroundColor:
+                          s.mode === 'boost' ? colors.success + '25' : colors.secondary,
+                        borderColor:
+                          s.mode === 'boost' ? colors.success : colors.border,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="trending-up"
+                      size={11}
+                      color={s.mode === 'boost' ? colors.success : colors.mutedForeground}
+                    />
+                    <Text
+                      style={[
+                        styles.sourcePrefBtnText,
+                        { color: s.mode === 'boost' ? colors.success : colors.mutedForeground },
+                      ]}
+                    >
+                      {t('sourcePref.boost')}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={() =>
+                      onSetSourcePref(s.host, s.mode === 'block' ? 'clear' : 'block')
+                    }
+                    style={[
+                      styles.sourcePrefBtn,
+                      {
+                        backgroundColor:
+                          s.mode === 'block' ? colors.destructive + '25' : colors.secondary,
+                        borderColor:
+                          s.mode === 'block' ? colors.destructive : colors.border,
+                      },
+                    ]}
+                  >
+                    <Feather
+                      name="slash"
+                      size={11}
+                      color={s.mode === 'block' ? colors.destructive : colors.mutedForeground}
+                    />
+                    <Text
+                      style={[
+                        styles.sourcePrefBtnText,
+                        { color: s.mode === 'block' ? colors.destructive : colors.mutedForeground },
+                      ]}
+                    >
+                      {t('sourcePref.block')}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))
+          )}
+        </View>
+      )}
+
       {interestAlerts.length > 0 && (
         <View style={styles.alertsHeaderRow}>
           <Text style={[styles.alertsHeader, { color: colors.foreground }]}>
@@ -289,7 +421,7 @@ export default function InterestDetailScreen() {
         >
           <Feather name="arrow-left" size={18} color={colors.foreground} />
         </TouchableOpacity>
-        <Text style={[styles.navTitle, { color: colors.foreground }]}>관심사 상세</Text>
+        <Text style={[styles.navTitle, { color: colors.foreground }]}>{t('interest.detail.title')}</Text>
         <TouchableOpacity
           onPress={() => {
             deleteInterest(interest.id);
@@ -313,8 +445,10 @@ export default function InterestDetailScreen() {
             <View style={styles.emptyWrap}>
               <EmptyState
                 icon="bell"
-                title="알림 수집 중"
-                subtitle="AI 에이전트가 관련 소식을 찾고 있어요. 잠시 후 알림이 도착합니다."
+                title={t('interest.detail.empty.title')}
+                subtitle={t('interest.detail.empty.subtitle')}
+                actionLabel={isRefreshing ? t('interest.detail.refreshing') : t('feed.empty.retry')}
+                onAction={onPressRefresh}
               />
             </View>
           ) : null
@@ -529,5 +663,37 @@ const styles = StyleSheet.create({
   actionBtnRow: {
     flexDirection: 'row',
     gap: 6,
+  },
+  sourcePrefRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+    paddingVertical: 8,
+  },
+  sourcePrefHost: {
+    fontSize: 13,
+    fontFamily: 'Inter_600SemiBold',
+  },
+  sourcePrefMeta: {
+    fontSize: 11,
+    fontFamily: 'Inter_400Regular',
+    marginTop: 1,
+  },
+  sourcePrefBtnRow: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  sourcePrefBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 8,
+    paddingVertical: 5,
+    borderRadius: 8,
+    borderWidth: 1,
+  },
+  sourcePrefBtnText: {
+    fontSize: 11,
+    fontFamily: 'Inter_500Medium',
   },
 });

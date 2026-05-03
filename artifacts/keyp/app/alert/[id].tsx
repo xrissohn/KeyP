@@ -112,6 +112,21 @@ export default function AlertDetailScreen() {
           <TouchableOpacity
             onPress={() => {
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+              router.push({
+                pathname: '/feedback',
+                params: { alertId: alert.id, kind: 'abuse' },
+              });
+            }}
+            style={[styles.saveBtn, { backgroundColor: colors.secondary }]}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+            accessibilityRole="button"
+            accessibilityLabel={t('alert.report')}
+          >
+            <Feather name="flag" size={18} color={colors.foreground} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            onPress={() => {
+              Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               toggleSaveAlert(alert.id);
             }}
             style={[styles.saveBtn, { backgroundColor: colors.secondary }]}

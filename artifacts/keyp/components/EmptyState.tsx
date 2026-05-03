@@ -9,9 +9,24 @@ interface Props {
   subtitle?: string;
   actionLabel?: string;
   onAction?: () => void;
+  // Optional secondary action ("ghost" style) shown beneath the primary
+  // CTA. Used for empty states that want a softer fallback like
+  // "Try again" alongside the main "Register an interest" call to action.
+  secondaryActionLabel?: string;
+  onSecondaryAction?: () => void;
+  hint?: string;
 }
 
-export default function EmptyState({ icon, title, subtitle, actionLabel, onAction }: Props) {
+export default function EmptyState({
+  icon,
+  title,
+  subtitle,
+  actionLabel,
+  onAction,
+  secondaryActionLabel,
+  onSecondaryAction,
+  hint,
+}: Props) {
   const colors = useColors();
 
   return (
@@ -23,6 +38,9 @@ export default function EmptyState({ icon, title, subtitle, actionLabel, onActio
       {subtitle && (
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{subtitle}</Text>
       )}
+      {hint && (
+        <Text style={[styles.hint, { color: colors.mutedForeground }]}>{hint}</Text>
+      )}
       {actionLabel && onAction && (
         <TouchableOpacity
           style={[styles.button, { backgroundColor: colors.primary }]}
@@ -31,6 +49,17 @@ export default function EmptyState({ icon, title, subtitle, actionLabel, onActio
         >
           <Text style={[styles.buttonText, { color: colors.primaryForeground }]}>
             {actionLabel}
+          </Text>
+        </TouchableOpacity>
+      )}
+      {secondaryActionLabel && onSecondaryAction && (
+        <TouchableOpacity
+          style={[styles.ghostButton, { borderColor: colors.border }]}
+          onPress={onSecondaryAction}
+          activeOpacity={0.7}
+        >
+          <Text style={[styles.ghostButtonText, { color: colors.foreground }]}>
+            {secondaryActionLabel}
           </Text>
         </TouchableOpacity>
       )}
@@ -74,5 +103,23 @@ const styles = StyleSheet.create({
   buttonText: {
     fontSize: 15,
     fontFamily: 'Inter_600SemiBold',
+  },
+  ghostButton: {
+    marginTop: 4,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 24,
+    borderWidth: 1,
+  },
+  ghostButtonText: {
+    fontSize: 13,
+    fontFamily: 'Inter_500Medium',
+  },
+  hint: {
+    fontSize: 12,
+    fontFamily: 'Inter_400Regular',
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.85,
   },
 });

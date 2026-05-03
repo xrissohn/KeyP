@@ -12,9 +12,11 @@ import React, {
 import { MOCK_ALERTS, MOCK_INTERESTS, MOCK_MATCHES } from '@/data/mockData';
 import { detectLanguage, t as translate, type Language } from '@/lib/i18n';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
+import { ApiRateLimitError } from '@/lib/agents/ApiClient';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
 import { initNotifications, notifyFreshAlerts } from '@/lib/notifications';
 import { getDeviceId } from '@/lib/deviceId';
+import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
   callTrackInterest,
   callUntrackInterest,
@@ -751,6 +753,12 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
           totalCollected: incoming.length,
         };
       } catch (err) {
+        // Rate-limit must propagate so the feed screen can show the friendly
+        // "daily quota reached" toast — silently swallowing it would strand
+        // the user thinking the refresh just produced 0 alerts.
+        if (err instanceof ApiRateLimitError) {
+          throw err;
+        }
         console.warn('[KeyP] refreshInterest failed', interestId, err);
         return { interestId, newAlertCount: 0, totalCollected: 0 };
       } finally {
@@ -771,7 +779,21 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       const targets = interestsRef.current.filter((i) => i.spec.isActive !== false);
       const results: RefreshResult[] = [];
       for (const i of targets) {
-        results.push(await refreshInterest(i.id));
+        try {
+          results.push(await refreshInterest(i.id));
+        } catch (err) {
+          // Surface the first rate-limit hit immediately — once the daily
+          // quota is exhausted, every remaining interest in the sweep would
+          // also hit 429, so abort early and let the caller (feed screen)
+          // show one consolidated toast.
+          if (err instanceof ApiRateLimitError) {
+            throw err;
+          }
+          // Other per-interest failures are already logged inside
+          // refreshInterest; treat them as a 0-result for that interest so
+          // the rest of the sweep can continue.
+          results.push({ interestId: i.id, newAlertCount: 0, totalCollected: 0 });
+        }
       }
       setLastBackgroundRunAt(new Date().toISOString());
       return results;
@@ -878,6 +900,19 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       clearInterval(interval);
     };
   }, [hydrated, autoCollectEnabled, autoCollectIntervalMs, refreshAllInterests, isProcessingInterest]);
+
+  // Foreground refresh: when the user brings KeyP back from the background,
+  // immediately top up alerts (subject to the same in-flight gate as the
+  // periodic polling tick). This makes the feed feel live the moment the
+  // app reopens, instead of waiting for the next interval tick.
+  useAutoRefresh(async () => {
+    if (!hydrated || !autoCollectEnabled || isProcessingInterest) return;
+    try {
+      await refreshAllInterests();
+    } catch {
+      // swallow — the periodic tick will retry shortly
+    }
+  }, hydrated && autoCollectEnabled);
 
   const savedAlerts = alerts.filter((a) => a.isSaved);
   const unreadCount = alerts.filter((a) => !a.readAt).length;

@@ -14,6 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
+import { callTrendingInterests, type TrendingInterestItem } from '@/lib/agents/ApiClient';
 
 const SLIDE_META = [
   { id: '1', icon: 'zap' as const, iconColor: '#5B7FFF', titleKey: 'onboarding.slide1.title', subtitleKey: 'onboarding.slide1.subtitle' },
@@ -29,6 +30,15 @@ export default function Onboarding() {
   const { language, setLanguage } = useApp();
   const { t } = useI18n();
   const [activeIndex, setActiveIndex] = useState(0);
+  const [trending, setTrending] = useState<TrendingInterestItem[]>([]);
+
+  React.useEffect(() => {
+    let alive = true;
+    callTrendingInterests().then((items) => {
+      if (alive) setTrending(items);
+    });
+    return () => { alive = false; };
+  }, []);
 
   const isLast = activeIndex === SLIDE_META.length - 1;
   const isFirst = activeIndex === 0;
@@ -121,6 +131,27 @@ export default function Onboarding() {
         </View>
         <Text style={[styles.title, { color: colors.foreground }]}>{t(currentSlide.titleKey)}</Text>
         <Text style={[styles.subtitle, { color: colors.mutedForeground }]}>{t(currentSlide.subtitleKey)}</Text>
+        {activeIndex === 0 && (
+          <Text style={[styles.notNews, { color: colors.mutedForeground }]}>
+            {t('onboarding.notNews.subtitle')}
+          </Text>
+        )}
+        {activeIndex === SLIDE_META.length - 1 && trending.length > 0 && (
+          <View style={styles.trendingWrap}>
+            <Text style={[styles.trendingTitle, { color: colors.mutedForeground }]}>
+              {t('onboarding.trending.title')}
+            </Text>
+            <View style={styles.trendingRow}>
+              {trending.slice(0, 8).map((item) => (
+                <View key={item.label} style={[styles.trendingChip, { backgroundColor: colors.primary + '15', borderColor: colors.primary + '40' }]}>
+                  <Text style={[styles.trendingText, { color: colors.primary }]} numberOfLines={1}>
+                    {item.label}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
       </View>
 
       <View style={[styles.footer, { paddingBottom: bottomInset + 24 }]}>
@@ -284,5 +315,41 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontFamily: 'Inter_700Bold',
     color: '#fff',
+  },
+  notNews: {
+    fontSize: 12,
+    fontFamily: 'Inter_500Medium',
+    textAlign: 'center',
+    paddingHorizontal: 8,
+    opacity: 0.85,
+  },
+  trendingWrap: {
+    width: '100%',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 8,
+  },
+  trendingTitle: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
+    textTransform: 'uppercase',
+    letterSpacing: 0.7,
+  },
+  trendingRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'center',
+    gap: 6,
+  },
+  trendingChip: {
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 12,
+    borderWidth: 1,
+    maxWidth: 200,
+  },
+  trendingText: {
+    fontSize: 11,
+    fontFamily: 'Inter_600SemiBold',
   },
 });

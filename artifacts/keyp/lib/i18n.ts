@@ -650,6 +650,195 @@ export const STRINGS: Record<string, Record<Language, string>> = {
     en: 'Generated {n} fallback alerts',
   },
 
+  // ─── Empty-state (feed / interest detail) extras ──────────────────
+  'feed.empty.nextRefresh': {
+    ko: '다음 자동 갱신 예정 {time}',
+    en: 'Next auto-refresh at {time}',
+  },
+  'feed.empty.retry': { ko: '지금 다시 시도', en: 'Try again now' },
+  'feed.rateLimited.title': { ko: '오늘 사용량 한도 도달', en: 'Daily limit reached' },
+  'feed.rateLimited.body': {
+    ko: '오늘은 자동 수집 횟수를 모두 사용했어요. ({used}/{quota}) 잠시 후 다시 시도하거나 플랜을 업그레이드하세요.',
+    en: "You've used all of today's auto-collect runs ({used}/{quota}). Try again later or upgrade your plan.",
+  },
+  'feed.rateLimited.upgrade': { ko: '요금제 보기', en: 'See pricing' },
+
+  // ─── Discovery (trending) ─────────────────────────────────────────
+  'discover.trending.title': { ko: '다른 사람들이 추적 중', en: 'Trending with others' },
+  'discover.trending.empty': {
+    ko: '아직 인기 키워드가 없어요',
+    en: 'No trending keywords yet',
+  },
+  'onboarding.trending.title': {
+    ko: '실제로 다른 KeyP 사용자가 추적 중인 관심사',
+    en: 'Real interests other KeyP users are tracking',
+  },
+  'onboarding.notNews.title': {
+    ko: 'KeyP는 일반 뉴스가 아닙니다',
+    en: 'KeyP is not generic news',
+  },
+  'onboarding.notNews.subtitle': {
+    ko: '내가 등록한 관심사에 한해서만, 가장 빠른 신호를 골라 알려드립니다.',
+    en: 'Only the interests you register — and only the fastest signals that match them.',
+  },
+
+  // ─── Source preferences ───────────────────────────────────────────
+  'sourcePref.title': { ko: '소스 관리', en: 'Source preferences' },
+  'sourcePref.empty': {
+    ko: '아직 소스 통계가 없어요. 알림이 쌓이면 도메인별 통계가 표시됩니다.',
+    en: 'No source stats yet. Stats appear here once alerts accumulate.',
+  },
+  'sourcePref.boost': { ko: '우선', en: 'Boost' },
+  'sourcePref.block': { ko: '차단', en: 'Block' },
+  'sourcePref.clear': { ko: '해제', en: 'Clear' },
+  'sourcePref.modeBoost': { ko: '우선 적용 중', en: 'Boosted' },
+  'sourcePref.modeBlock': { ko: '차단됨', en: 'Blocked' },
+  'sourcePref.alertCount': { ko: '{n}건', en: '{n} alerts' },
+
+  // ─── Alert dup pill ───────────────────────────────────────────────
+  'alert.duplicateSources': {
+    ko: '+{n} 다른 소스',
+    en: '+{n} other source(s)',
+  },
+
+  // ─── Beta feedback / report ───────────────────────────────────────
+  'feedback.title': { ko: '의견 보내기', en: 'Send feedback' },
+  'feedback.subtitle': {
+    ko: 'KeyP를 더 좋게 만드는 데 도움을 주세요. 솔직한 의견 환영합니다.',
+    en: 'Help us make KeyP better. Honest feedback welcome.',
+  },
+  'feedback.kind.feedback': { ko: '일반 의견', en: 'General feedback' },
+  'feedback.kind.bug': { ko: '버그 신고', en: 'Bug report' },
+  'feedback.kind.abuse': { ko: '부적절한 알림 신고', en: 'Report inappropriate alert' },
+  'feedback.kind.other': { ko: '기타', en: 'Other' },
+  'feedback.bodyPlaceholder': {
+    ko: '자유롭게 적어주세요…',
+    en: 'Write whatever comes to mind…',
+  },
+  'feedback.contactPlaceholder': {
+    ko: '연락처 (선택, 이메일/디스코드 등)',
+    en: 'Contact (optional, e.g. email)',
+  },
+  'feedback.submit': { ko: '보내기', en: 'Send' },
+  'feedback.submitting': { ko: '보내는 중…', en: 'Sending…' },
+  'feedback.thanks.title': { ko: '감사합니다!', en: 'Thank you!' },
+  'feedback.thanks.body': {
+    ko: '의견을 잘 받았어요. 빠르게 반영하겠습니다.',
+    en: "We received your feedback. We'll act on it quickly.",
+  },
+  'feedback.error.body': {
+    ko: '의견 전송에 실패했어요. 잠시 후 다시 시도해주세요.',
+    en: 'Could not send feedback. Please try again in a moment.',
+  },
+  'feedback.empty': { ko: '내용을 입력해주세요.', en: 'Please write something.' },
+  'profile.item.feedback': { ko: '의견 보내기', en: 'Send feedback' },
+  'alert.report': { ko: '신고', en: 'Report' },
+
+  // ─── Legal ────────────────────────────────────────────────────────
+  'legal.privacy.title': { ko: '개인정보 처리방침', en: 'Privacy Policy' },
+  'legal.terms.title': { ko: '이용약관', en: 'Terms of Service' },
+  'legal.lastUpdated': { ko: '최종 업데이트: 2026-05', en: 'Last updated: 2026-05' },
+  'legal.privacy.body': {
+    ko: `KeyP("저희")는 사용자의 개인정보를 신중하게 다룹니다.
+
+1. 수집 항목
+- 디바이스 식별자(익명), 등록한 관심사 텍스트, 알림 클릭 통계, 피드백.
+- 푸시 알림을 받으려면 푸시 토큰이 수집됩니다.
+
+2. 사용 목적
+- 더 좋은 알림을 큐레이션하고, 중복/스팸/만료 링크를 학습으로 차단하기 위해서만 사용합니다.
+- 마케팅 목적의 외부 공유는 하지 않습니다.
+
+3. 보관 기간
+- 관심사·알림 데이터는 사용자가 삭제하거나 90일간 비활성 상태일 때 자동 삭제됩니다.
+
+4. 사용자 권리
+- 언제든지 관심사 삭제, 데이터 삭제, 푸시 비활성화가 가능합니다.
+- 의견·문의: 프로필 → "의견 보내기".
+
+5. 제3자 서비스
+- 알림 수집을 위해 LLM 검색 API와 RSS/유튜브/트위터/레딧 공개 데이터를 사용합니다.
+
+6. 변경 사항
+- 정책이 바뀌면 인앱 공지를 통해 안내합니다.`,
+    en: `KeyP ("we") handles your personal data with care.
+
+1. What we collect
+- Anonymous device identifier, the text of interests you register, click metrics on alerts, and feedback.
+- A push token is collected if you opt in to push notifications.
+
+2. How we use it
+- Solely to curate better alerts and to learn which duplicates, spam, or dead links to filter.
+- We do not share data with third parties for marketing.
+
+3. Retention
+- Interests and alerts are deleted when you remove them, or after 90 days of inactivity.
+
+4. Your rights
+- You can delete interests, wipe data, or disable push at any time.
+- Contact: Profile → "Send feedback".
+
+5. Third-party services
+- We use LLM search APIs and public data from RSS / YouTube / Twitter / Reddit to collect alerts.
+
+6. Changes
+- Material changes are announced in-app.`,
+  },
+  'legal.terms.body': {
+    ko: `KeyP 이용약관
+
+1. 서비스 개요
+- KeyP는 사용자가 등록한 관심사에 대해 AI 에이전트가 실시간 신호를 수집·전달하는 알림 서비스입니다.
+
+2. 사용자 의무
+- 타인의 권리, 명예, 사생활을 침해하는 관심사 등록을 금지합니다.
+- 자동화된 어뷰즈, 스크래핑, 역엔지니어링은 금지됩니다.
+
+3. 콘텐츠 책임
+- 알림에 표시되는 외부 콘텐츠는 원 출처의 것이며 KeyP는 정확성을 보장하지 않습니다.
+- 사용자는 출처 링크를 통해 원문을 확인할 책임이 있습니다.
+
+4. 요금제
+- Free / Basic / Pro / Power 플랜이 제공되며, 폴링 주기와 속보 횟수가 다릅니다.
+- 결제·환불은 OS의 인앱결제 정책을 따릅니다.
+
+5. 종료
+- 사용자는 언제든 계정·데이터 삭제 요청이 가능합니다.
+- KeyP는 약관 위반 시 사전 통지 없이 서비스 사용을 중지할 수 있습니다.
+
+6. 면책
+- 본 서비스는 "있는 그대로" 제공되며, 법으로 허용되는 한 묵시적 보증 없이 제공됩니다.
+
+7. 준거법
+- 본 약관은 대한민국 법률을 준거법으로 합니다.`,
+    en: `KeyP Terms of Service
+
+1. Service overview
+- KeyP delivers real-time signal alerts gathered by AI agents for the interests you register.
+
+2. User obligations
+- Do not register interests that infringe others' rights, defame, or invade privacy.
+- Automated abuse, scraping, or reverse engineering is prohibited.
+
+3. Content responsibility
+- External content surfaced in alerts belongs to its original sources; KeyP does not warrant accuracy.
+- You are responsible for checking the original via the source link.
+
+4. Plans
+- Free / Basic / Pro / Power plans are offered, differing in polling cadence and 속보 count.
+- Billing and refunds follow the platform's in-app purchase policy.
+
+5. Termination
+- You may request account and data deletion at any time.
+- KeyP may suspend the service for users who violate these terms without prior notice.
+
+6. Disclaimer
+- The service is provided "as is" without implied warranties to the extent allowed by law.
+
+7. Governing law
+- These terms are governed by the laws of the Republic of Korea.`,
+  },
+
   // ─── Not-found ─────────────────────────────────────────────────────
   'notFound.title': {
     ko: '존재하지 않는 화면입니다.',

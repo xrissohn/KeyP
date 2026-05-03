@@ -1,6 +1,6 @@
 import type { Alert, FreshnessLevel, InterestSpec, SourceType } from '@/types';
 import type { AgentStep } from '@workspace/api-client-react';
-import { callGenerateAlerts } from './ApiClient';
+import { callGenerateAlerts, ApiRateLimitError } from './ApiClient';
 
 export interface GenerateAlertsWithStepsResult {
   alerts: Alert[];
@@ -132,6 +132,7 @@ export async function generateAlertsForSpec(
   try {
     const result = await callGenerateAlerts(
       {
+        // (spec body below) ----------------------------------------------
         intentType: spec.intentType,
         topic: spec.topic,
         entities: spec.entities,
@@ -152,7 +153,19 @@ export async function generateAlertsForSpec(
       plan,
       userLanguage,
       latestKnownEventAt,
+      // Pass interest id so the server can apply per-interest source
+      // preferences and per-device daily quota tracking. Sniffed off the
+      // raw body server-side; no codegen ripple.
+      spec.id,
     );
+    const dupSourcesById: Record<string, Alert['duplicateSources']> = {};
+    for (const a of result.alerts ?? []) {
+      const dups = (a as unknown as { duplicateSources?: Alert['duplicateSources'] })
+        .duplicateSources;
+      if (Array.isArray(dups) && dups.length > 0) {
+        dupSourcesById[`${a.title}::${a.source?.url ?? ''}`] = dups;
+      }
+    }
     const alerts = (result.alerts ?? []).map((a): Alert => {
       const sourceType: SourceType = VALID_SOURCES_ALERT.has(a.source.type as SourceType)
         ? (a.source.type as SourceType)
@@ -190,10 +203,18 @@ export async function generateAlertsForSpec(
         eventOccurredAt: new Date(
           Date.now() - (a.eventMinutesAgo ?? a.minutesAgo ?? 30) * 60 * 1000
         ).toISOString(),
+        duplicateSources: dupSourcesById[`${a.title}::${a.source?.url ?? ''}`],
       };
     });
     return { alerts, steps: result.steps ?? [] };
   } catch (err) {
+    // Rate-limit MUST propagate so the feed screen can show the friendly
+    // "daily quota reached" toast. Falling back to local templates here
+    // would silently mask quota exhaustion and the user would never see
+    // the upgrade prompt.
+    if (err instanceof ApiRateLimitError) {
+      throw err;
+    }
     console.warn('[KeyP] generateAlerts API failed, using local fallback:', err);
     await new Promise((resolve) => setTimeout(resolve, 800));
     return {

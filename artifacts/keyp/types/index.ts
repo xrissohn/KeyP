@@ -98,6 +98,11 @@ export interface Alert {
   /** ISO timestamp when the user opened/marked this individual alert as read. */
   readAt?: string;
   isMatch?: boolean;
+  /**
+   * Other sources covering the same story (clustered server-side by host or
+   * dedupKey). Surface in UI as a "+N other sources" pill on the card.
+   */
+  duplicateSources?: AlertSource[];
 }
 
 export interface MatchedUser {
