@@ -1,12 +1,12 @@
 /* KeyP service worker — install, fetch caching, web push, badging. */
-const CACHE_NAME = "keyp-shell-v4";
+const CACHE_NAME = "keyp-shell-v5";
 const SHELL_ASSETS = [
   "/",
-  "/manifest.webmanifest",
   "/icon.png",
   "/icon-mark.png",
   "/icon-192.png",
   "/icon-512.png",
+  "/icon-192-maskable.png",
   "/icon-512-maskable.png",
   "/apple-touch-icon.png",
   "/favicon-32.png",
@@ -40,6 +40,12 @@ self.addEventListener("fetch", (event) => {
 
   // Never cache API or auth proxy responses.
   if (url.pathname.startsWith("/api/") || url.pathname.startsWith("/__clerk")) {
+    return;
+  }
+  // Manifest must always come from network so PWA install picks up the
+  // freshest icon list (Android WebAPK install reads it once and bakes
+  // the result into the home-screen launcher).
+  if (url.pathname === "/manifest.webmanifest") {
     return;
   }
 
