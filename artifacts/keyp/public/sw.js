@@ -1,5 +1,5 @@
 /* KeyP service worker — install, fetch caching, web push, badging. */
-const CACHE_NAME = "keyp-shell-v5";
+const CACHE_NAME = "keyp-shell-v6";
 const SHELL_ASSETS = [
   "/",
   "/icon.png",
