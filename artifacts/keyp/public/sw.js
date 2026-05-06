@@ -1,5 +1,5 @@
-/* KeyP service worker — minimal install + network-first for navigations. */
-const CACHE_NAME = "keyp-shell-v2";
+/* KeyP service worker — install, fetch caching, web push, badging. */
+const CACHE_NAME = "keyp-shell-v3";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
@@ -8,6 +8,8 @@ const SHELL_ASSETS = [
   "/icon-192.png",
   "/icon-512.png",
   "/icon-512-maskable.png",
+  "/apple-touch-icon.png",
+  "/favicon-32.png",
 ];
 
 self.addEventListener("install", (event) => {
@@ -72,4 +74,86 @@ self.addEventListener("fetch", (event) => {
         }),
     ),
   );
+});
+
+// ─────────────────────────── Web Push ─────────────────────────────────
+//
+// Server posts JSON via web-push (VAPID-signed). We display a system
+// notification and bump the PWA badge so the user sees an unread count
+// on the home-screen icon (Android, desktop Chrome, iOS 16.4+ PWA).
+
+self.addEventListener("push", (event) => {
+  /** @type {{title?: string, body?: string, url?: string, tag?: string, badge?: number, data?: any}} */
+  let payload = {};
+  if (event.data) {
+    try {
+      payload = event.data.json();
+    } catch {
+      try {
+        payload = { body: event.data.text() };
+      } catch {
+        payload = {};
+      }
+    }
+  }
+  const title = payload.title || "KeyP";
+  const body = payload.body || "";
+  const url = payload.url || "/";
+  const tag = payload.tag || "keyp-alert";
+  const badgeCount = typeof payload.badge === "number" ? payload.badge : null;
+
+  const showPromise = self.registration.showNotification(title, {
+    body,
+    tag,
+    icon: "/icon-192.png",
+    badge: "/favicon-32.png",
+    data: { ...(payload.data || {}), url },
+    renotify: true,
+  });
+
+  // App Badging API: best-effort. Not supported everywhere; ignore failures.
+  let badgePromise = Promise.resolve();
+  if (badgeCount !== null && "setAppBadge" in self.navigator) {
+    badgePromise = self.navigator
+      .setAppBadge(badgeCount)
+      .catch(() => undefined);
+  }
+
+  event.waitUntil(Promise.all([showPromise, badgePromise]));
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = (event.notification.data && event.notification.data.url) || "/";
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: "window", includeUncontrolled: true })
+      .then((clientList) => {
+        // Focus an existing tab if we have one — even if it's not on the
+        // exact URL, deep-linking via postMessage is preferable to opening
+        // a duplicate tab. For now we just navigate it to the target URL.
+        for (const client of clientList) {
+          if ("focus" in client) {
+            try {
+              if ("navigate" in client) client.navigate(url);
+              return client.focus();
+            } catch {
+              // fall through to openWindow
+            }
+          }
+        }
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(url);
+        }
+        return undefined;
+      }),
+  );
+});
+
+self.addEventListener("pushsubscriptionchange", (event) => {
+  // Browser rotated the subscription (key compromise, expiry, etc.). The
+  // client SDK re-subscribes on next page load; nothing to do here besides
+  // letting the old subscription die naturally on the server side (404/410
+  // eviction in services/webPush.ts).
+  event.waitUntil(Promise.resolve());
 });

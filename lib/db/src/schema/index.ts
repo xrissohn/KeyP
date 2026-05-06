@@ -6,3 +6,4 @@ export * from "./sourceReputation";
 export * from "./usageQuota";
 export * from "./userReports";
 export * from "./sourcePreferences";
+export * from "./webPushSubscriptions";

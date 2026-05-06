@@ -14,7 +14,7 @@ import { detectLanguage, t as translate, type Language } from '@/lib/i18n';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
 import { ApiRateLimitError } from '@/lib/agents/ApiClient';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
-import { initNotifications, notifyFreshAlerts } from '@/lib/notifications';
+import { initNotifications, notifyFreshAlerts, setAppBadgeCount } from '@/lib/notifications';
 import { getDeviceId } from '@/lib/deviceId';
 import { useAutoRefresh } from '@/hooks/useAutoRefresh';
 import {
@@ -916,6 +916,13 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
 
   const savedAlerts = alerts.filter((a) => a.isSaved);
   const unreadCount = alerts.filter((a) => !a.readAt).length;
+
+  // Mirror the unread count to the PWA app icon (App Badging API). The
+  // server-side SW also bumps the badge when a push arrives while every
+  // tab is closed, but this keeps the badge in sync with in-app reads.
+  useEffect(() => {
+    setAppBadgeCount(unreadCount);
+  }, [unreadCount]);
 
   // Persist plan + sync to server. Server stores it in the spec JSON of every
   // tracked interest so the poller automatically uses the new cadence on its

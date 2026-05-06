@@ -5,6 +5,7 @@ import {
   pushDevicesTable,
   trackedInterestsTable,
   seenAlertsTable,
+  webPushSubscriptionsTable,
 } from "@workspace/db";
 import {
   RegisterDeviceBody,
@@ -15,6 +16,7 @@ import {
   PushTestResponse as PushTestResultSchema,
 } from "@workspace/api-zod";
 import { sendExpoPush, isExpoPushToken } from "../services/expoPush";
+import { getVapidPublicKey, sendWebPushToDevice } from "../services/webPush";
 import { recordFeedback, type FeedbackKind } from "../services/feedbackProfile";
 import { bumpReputation, hostFromUrl } from "../services/sourceReputation";
 import {
@@ -270,6 +272,83 @@ router.post("/push/feedback", async (req, res) => {
     "[feedback] recorded",
   );
   res.json({ ok: true });
+});
+
+// ─────────────────────────── Web Push (PWA / browser) ─────────────────
+//
+// Browsers subscribe via PushManager.subscribe({applicationServerKey}) and
+// POST the resulting subscription here. Endpoint URL is unique per browser
+// install and acts as the primary key; we tie it to the KeyP deviceId so
+// the poller can fan out alerts to every installed surface.
+
+router.get("/push/vapid-public-key", (_req, res) => {
+  const key = getVapidPublicKey();
+  if (!key) {
+    res.status(503).json({ error: "vapid_not_configured" });
+    return;
+  }
+  res.json({ publicKey: key });
+});
+
+router.post("/push/web-subscribe", async (req, res) => {
+  const body = (req.body ?? {}) as {
+    deviceId?: unknown;
+    subscription?: { endpoint?: unknown; keys?: { p256dh?: unknown; auth?: unknown } };
+    userAgent?: unknown;
+  };
+  const deviceId = typeof body.deviceId === "string" ? body.deviceId : "";
+  const sub = body.subscription;
+  const endpoint =
+    sub && typeof sub.endpoint === "string" && sub.endpoint.length > 0
+      ? sub.endpoint
+      : "";
+  const p256dh =
+    sub?.keys && typeof sub.keys.p256dh === "string" ? sub.keys.p256dh : "";
+  const auth =
+    sub?.keys && typeof sub.keys.auth === "string" ? sub.keys.auth : "";
+  const userAgent =
+    typeof body.userAgent === "string" ? body.userAgent.slice(0, 500) : null;
+  if (!deviceId || !endpoint || !p256dh || !auth) {
+    res.status(400).json({ error: "Missing deviceId or subscription fields" });
+    return;
+  }
+  await db
+    .insert(webPushSubscriptionsTable)
+    .values({ endpoint, deviceId, p256dh, auth, userAgent })
+    .onConflictDoUpdate({
+      target: webPushSubscriptionsTable.endpoint,
+      set: { deviceId, p256dh, auth, userAgent, updatedAt: new Date() },
+    });
+  res.json({ ok: true });
+});
+
+router.post("/push/web-unsubscribe", async (req, res) => {
+  const body = (req.body ?? {}) as { endpoint?: unknown };
+  const endpoint = typeof body.endpoint === "string" ? body.endpoint : "";
+  if (!endpoint) {
+    res.status(400).json({ error: "Missing endpoint" });
+    return;
+  }
+  await db
+    .delete(webPushSubscriptionsTable)
+    .where(eq(webPushSubscriptionsTable.endpoint, endpoint));
+  res.json({ ok: true });
+});
+
+router.post("/push/web-test", async (req, res) => {
+  const body = (req.body ?? {}) as { deviceId?: unknown };
+  const deviceId = typeof body.deviceId === "string" ? body.deviceId : "";
+  if (!deviceId) {
+    res.status(400).json({ error: "Missing deviceId" });
+    return;
+  }
+  const result = await sendWebPushToDevice(deviceId, {
+    title: "KeyP",
+    body: "웹 푸시가 정상적으로 작동합니다.",
+    url: "/",
+    tag: "keyp-test",
+  });
+  res.json({ ok: result.sent > 0, ...result });
 });
 
 // Suppress unused-binding warning for the and import (kept for future filters).

@@ -14,6 +14,9 @@ let nativeReady = false;
 let nativePermissionGranted: boolean | null = null;
 
 let webPermissionAsked = false;
+let webPushRegistered = false;
+let cachedVapidPublicKey: string | null = null;
+let swRegistrationPromise: Promise<ServiceWorkerRegistration | null> | null = null;
 
 async function loadNativeModule() {
   if (nativeModule || Platform.OS === 'web') return nativeModule;
@@ -132,10 +135,149 @@ async function registerExpoPushTokenOnce(): Promise<void> {
   }
 }
 
+// ─────────────────────────── Web Push (PWA) ───────────────────────────
+//
+// Browser/PWA path. The service worker at /sw.js handles `push` events
+// even when every tab is closed, so we get YouTube-style background
+// notifications. We hand the server a unique subscription per browser
+// install and let the poller fan out alerts the same way it does for
+// Expo push.
+
+function urlBase64ToUint8Array(base64String: string): Uint8Array<ArrayBuffer> {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = atob(base64);
+  // Allocate a concrete ArrayBuffer (not SharedArrayBuffer-backed) so the
+  // result satisfies PushManager.subscribe's BufferSource type in TS 5.9+.
+  const buffer = new ArrayBuffer(rawData.length);
+  const out = new Uint8Array(buffer);
+  for (let i = 0; i < rawData.length; i += 1) out[i] = rawData.charCodeAt(i);
+  return out;
+}
+
+async function ensureServiceWorker(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof window === 'undefined' || !('serviceWorker' in navigator)) return null;
+  if (!swRegistrationPromise) {
+    swRegistrationPromise = (async () => {
+      try {
+        const existing = await navigator.serviceWorker.getRegistration('/');
+        const reg = existing ?? (await navigator.serviceWorker.register('/sw.js', { scope: '/' }));
+        // Wait until the SW is active so subscribe() has a controller.
+        if (!reg.active) await navigator.serviceWorker.ready;
+        return reg;
+      } catch (err) {
+        console.warn('[KeyP] service worker registration failed:', err);
+        return null;
+      }
+    })();
+  }
+  // Reset the cache on a null result so a transient registration failure
+  // (e.g. network blip on first paint) can be retried by the next caller.
+  const result = await swRegistrationPromise;
+  if (!result) swRegistrationPromise = null;
+  return result;
+}
+
+async function fetchVapidPublicKey(): Promise<string | null> {
+  if (cachedVapidPublicKey) return cachedVapidPublicKey;
+  // Prefer the build-time env (avoids a network round-trip on cold start).
+  const fromEnv = process.env.EXPO_PUBLIC_VAPID_PUBLIC_KEY;
+  if (fromEnv && typeof fromEnv === 'string' && fromEnv.length > 20) {
+    cachedVapidPublicKey = fromEnv;
+    return fromEnv;
+  }
+  try {
+    const res = await fetch('/api/push/vapid-public-key');
+    if (!res.ok) return null;
+    const json = (await res.json()) as { publicKey?: string };
+    if (json.publicKey) {
+      cachedVapidPublicKey = json.publicKey;
+      return json.publicKey;
+    }
+  } catch (err) {
+    console.warn('[KeyP] vapid key fetch failed:', err);
+  }
+  return null;
+}
+
+async function registerWebPushOnce(): Promise<void> {
+  if (webPushRegistered || Platform.OS !== 'web') return;
+  if (typeof window === 'undefined' || !('PushManager' in window)) return;
+  const ok = await ensureWebPermission();
+  if (!ok) return;
+  const reg = await ensureServiceWorker();
+  if (!reg) return;
+  const publicKey = await fetchVapidPublicKey();
+  if (!publicKey) return;
+  try {
+    let sub = await reg.pushManager.getSubscription();
+    if (!sub) {
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey),
+      });
+    }
+    const deviceId = await getDeviceId();
+    const subJson = sub.toJSON() as {
+      endpoint?: string;
+      keys?: { p256dh?: string; auth?: string };
+    };
+    if (!subJson.endpoint || !subJson.keys?.p256dh || !subJson.keys?.auth) return;
+    const res = await fetch('/api/push/web-subscribe', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        deviceId,
+        subscription: {
+          endpoint: subJson.endpoint,
+          keys: { p256dh: subJson.keys.p256dh, auth: subJson.keys.auth },
+        },
+        userAgent:
+          typeof navigator !== 'undefined' ? navigator.userAgent : undefined,
+      }),
+    });
+    // Only mark as registered on success. A transient server error must
+    // not lock us out of retrying for the rest of the session — the next
+    // initNotifications() call will try again.
+    if (res.ok) {
+      webPushRegistered = true;
+    } else {
+      console.warn('[KeyP] web push subscribe rejected:', res.status);
+    }
+  } catch (err) {
+    console.warn('[KeyP] web push subscribe failed:', err);
+  }
+}
+
+/**
+ * Update the PWA app icon badge to reflect unread alert count. Uses the
+ * App Badging API (Chrome desktop, Android Chrome, iOS 16.4+ installed
+ * PWA). No-op on browsers without support.
+ */
+export function setAppBadgeCount(count: number): void {
+  if (Platform.OS !== 'web') return;
+  if (typeof navigator === 'undefined') return;
+  const nav = navigator as Navigator & {
+    setAppBadge?: (n?: number) => Promise<void>;
+    clearAppBadge?: () => Promise<void>;
+  };
+  try {
+    if (count > 0 && nav.setAppBadge) {
+      void nav.setAppBadge(count).catch(() => undefined);
+    } else if (nav.clearAppBadge) {
+      void nav.clearAppBadge().catch(() => undefined);
+    }
+  } catch {
+    // Badging is best-effort.
+  }
+}
+
 /** Initialize notification permissions early so the first alert lands fast. */
 export async function initNotifications(): Promise<void> {
   if (Platform.OS === 'web') {
     await ensureWebPermission();
+    // Fire-and-forget so the UI never waits on the SW registration.
+    void registerWebPushOnce();
     return;
   }
   await ensureNativePermission();
@@ -157,7 +299,7 @@ export async function notifyNewAlert(alert: Alert): Promise<void> {
       const n = new Notification(title, {
         body,
         tag: alert.id,
-        icon: '/favicon.ico',
+        icon: '/icon-192.png',
       });
       // Keep a short-lived reference so the GC doesn't kill it before display.
       setTimeout(() => n.close(), 8_000);

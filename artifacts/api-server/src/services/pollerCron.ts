@@ -11,6 +11,7 @@ import type { GeneratedAlertsResult, InterestSpecData, AlertData } from "@worksp
 import { logger } from "../lib/logger";
 import { INTERNAL_TOKEN } from "../lib/internalAuth";
 import { sendExpoPush, type ExpoPushMessage } from "./expoPush";
+import { sendWebPushToDevice } from "./webPush";
 
 // ────────────────────────────────────────────────────────────────────────
 // Plan-aware polling cadence.
@@ -374,18 +375,15 @@ export async function sweepOne(rowInterestId: string, force = false): Promise<vo
     .set({ lastNewAt: now })
     .where(eq(trackedInterestsTable.interestId, rowInterestId));
 
+  // Build the localized push payload once and dispatch to every channel
+  // (Expo native + Web Push) the device has registered. A web-only PWA
+  // install has no Expo token but should still receive background push,
+  // so we MUST NOT short-circuit when pushDevicesTable is empty.
   const [device] = await db
     .select()
     .from(pushDevicesTable)
     .where(eq(pushDevicesTable.deviceId, row.deviceId))
     .limit(1);
-  if (!device) {
-    logger.info(
-      { interestId: rowInterestId },
-      "[poller] no device token; skipping push",
-    );
-    return;
-  }
 
   const top = [...ourFresh].sort((a, b) => {
     const am = a.alert.minutesAgo ?? 9999;
@@ -407,23 +405,62 @@ export async function sweepOne(rowInterestId: string, force = false): Promise<vo
         : `${top.alert.title} (외 ${extraCount}건)`
       : top.alert.title;
 
-  const messages: ExpoPushMessage[] = [
-    {
-      to: device.expoPushToken,
+  let invalidTokens: string[] = [];
+  if (device) {
+    const messages: ExpoPushMessage[] = [
+      {
+        to: device.expoPushToken,
+        title,
+        body,
+        sound: "default",
+        priority: "high",
+        channelId: "keyp-default",
+        data: {
+          interestId: rowInterestId,
+          url: top.alert.source.url ?? null,
+          freshCount: fresh.length,
+          boost: force,
+        },
+      },
+    ];
+    const result = await sendExpoPush(messages);
+    invalidTokens = result.invalidTokens;
+  }
+
+  // Fan out the same alert to any browser/PWA Web Push subscriptions tied
+  // to this device. Independent of the Expo path so web-only installs
+  // (no native app) still receive background push when every tab is
+  // closed. The SW reads `data.badge` to bump the app icon (App Badging
+  // API) and `data.url` to deep-link on notificationclick.
+  try {
+    const webResult = await sendWebPushToDevice(row.deviceId, {
       title,
       body,
-      sound: "default",
-      priority: "high",
-      channelId: "keyp-default",
+      url: top.alert.source.url ?? "/",
+      tag: `keyp-${rowInterestId}`,
+      badge: ourFresh.length,
       data: {
         interestId: rowInterestId,
         url: top.alert.source.url ?? null,
-        freshCount: fresh.length,
+        freshCount: ourFresh.length,
         boost: force,
       },
-    },
-  ];
-  const { invalidTokens } = await sendExpoPush(messages);
+    });
+    if (webResult.sent > 0 || webResult.evicted > 0) {
+      logger.info(
+        { interestId: rowInterestId, ...webResult },
+        "[poller] web push dispatched",
+      );
+    }
+  } catch (err) {
+    logger.warn({ err, interestId: rowInterestId }, "[poller] web push failed");
+  }
+
+  if (!device) {
+    // Web-only install (or never-registered native): nothing more to do
+    // for the Expo channel. Web push above already handled fan-out.
+    return;
+  }
 
   if (invalidTokens.includes(device.expoPushToken)) {
     logger.info(
