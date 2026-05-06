@@ -153,6 +153,21 @@ export async function callParseInterest(
   return postJson<ParsedInterestResult>('/agents/parse-interest', { rawText, userId });
 }
 
+export class PlanLimitError extends Error {
+  readonly isPlanLimit = true;
+  readonly status = 403;
+  readonly plan: PlanTier;
+  readonly used: number;
+  readonly limit: number;
+  constructor(opts: { plan: PlanTier; used: number; limit: number; message?: string }) {
+    super(opts.message ?? 'plan_limit');
+    this.name = 'PlanLimitError';
+    this.plan = opts.plan;
+    this.used = opts.used;
+    this.limit = opts.limit;
+  }
+}
+
 export class ApiRateLimitError extends Error {
   readonly isRateLimit = true;
   readonly status = 429;
@@ -379,7 +394,34 @@ export async function callTrackInterest(args: {
   rawText?: string;
   userLanguage?: 'ko' | 'en';
 }): Promise<{ ok: boolean; interestId: string }> {
-  return postJson('/push/track-interest', args, 10000);
+  // Hand-rolled (instead of postJson) so we can map a 403 PLAN_LIMIT
+  // response to the typed `PlanLimitError` the UI surfaces as a friendly
+  // "한도 도달" message — postJson would collapse it into a generic Error.
+  const base = getApiBase();
+  if (!base) throw new Error('API base URL unavailable');
+  const auth = await authHeaders();
+  const res = await fetch(`${base}/push/track-interest`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', ...auth },
+    credentials: 'include',
+    body: JSON.stringify(args),
+  });
+  if (res.status === 403) {
+    let body: { code?: string; plan?: PlanTier; used?: number; limit?: number } = {};
+    try { body = await res.json(); } catch {}
+    if (body.code === 'PLAN_LIMIT') {
+      throw new PlanLimitError({
+        plan: body.plan ?? 'free',
+        used: body.used ?? 0,
+        limit: body.limit ?? 3,
+      });
+    }
+    throw new Error(`API /push/track-interest failed with 403`);
+  }
+  if (!res.ok) {
+    throw new Error(`API /push/track-interest failed with ${res.status}`);
+  }
+  return (await res.json()) as { ok: boolean; interestId: string };
 }
 
 export async function callUntrackInterest(interestId: string): Promise<{ ok: boolean }> {

@@ -266,6 +266,14 @@ export const STRINGS: Record<string, Record<Language, string>> = {
     ko: '분석 중 오류가 발생했습니다. 다시 시도해주세요.',
     en: 'An error occurred during analysis. Please try again.',
   },
+  'interest.add.limit.title': {
+    ko: '관심사 한도 도달',
+    en: 'Interest limit reached',
+  },
+  'interest.add.limit.body': {
+    ko: '무료 플랜은 관심사를 최대 {limit}개까지 등록할 수 있어요. 기존 관심사를 삭제한 뒤 다시 시도해주세요.',
+    en: 'The free plan allows up to {limit} interests. Please remove an existing interest and try again.',
+  },
   'interest.add.agent.Planner.label': { ko: 'Planner', en: 'Planner' },
   'interest.add.agent.Planner.desc': {
     ko: '관심사 의도/엔티티 구조화 (GPT-5.4)',

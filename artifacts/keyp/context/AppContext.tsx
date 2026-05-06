@@ -12,7 +12,8 @@ import React, {
 import { MOCK_ALERTS, MOCK_INTERESTS, MOCK_MATCHES } from '@/data/mockData';
 import { detectLanguage, t as translate, type Language } from '@/lib/i18n';
 import { generateAlertsForSpec } from '@/lib/agents/MockPipeline';
-import { ApiRateLimitError } from '@/lib/agents/ApiClient';
+import { ApiRateLimitError, PlanLimitError } from '@/lib/agents/ApiClient';
+import { planInterestCap } from '@/lib/planLimits';
 import { parseInterest } from '@/lib/agents/PlannerAgent';
 import { initNotifications, notifyFreshAlerts, setAppBadgeCount } from '@/lib/notifications';
 import { getDeviceId } from '@/lib/deviceId';
@@ -329,6 +330,18 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
       rawText: string,
       onSteps?: (steps: AgentStep[]) => void
     ): Promise<AddInterestResult> => {
+      // Plan-tier cap pre-check (free=3 by default). Done BEFORE the
+      // Planner round-trip so we don't burn an LLM call when we already
+      // know we'll reject. The server enforces the same cap as a defense
+      // in depth — see /push/track-interest.
+      const cap = planInterestCap(planRef.current);
+      if (interests.length >= cap) {
+        throw new PlanLimitError({
+          plan: planRef.current,
+          used: interests.length,
+          limit: cap,
+        });
+      }
       setIsProcessingInterest(true);
       try {
         const { spec, steps: plannerSteps } = await parseInterest(userId, rawText);
@@ -415,7 +428,7 @@ export function AppProvider({ children }: { children: React.ReactNode }) {
         setIsProcessingInterest(false);
       }
     },
-    []
+    [interests.length]
   );
 
   const deleteInterest = useCallback((interestId: string) => {

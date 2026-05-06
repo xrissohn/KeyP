@@ -17,7 +17,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/context/AuthContext';
 import { useApp, useI18n } from '@/context/AppContext';
 import { useColors } from '@/hooks/useColors';
-import { callTrendingInterests, type TrendingInterestItem } from '@/lib/agents/ApiClient';
+import { callTrendingInterests, PlanLimitError, type TrendingInterestItem } from '@/lib/agents/ApiClient';
 import type { AgentStep } from '@workspace/api-client-react';
 import type { InterestSpec } from '@/types';
 
@@ -77,9 +77,16 @@ export default function AddInterestScreen() {
       setSteps(result.steps);
       setPhase('result');
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    } catch {
+    } catch (err) {
       if (requestIdRef.current !== myRequestId) return;
-      Alert.alert(t('common.error'), t('interest.add.error.body'));
+      if (err instanceof PlanLimitError) {
+        Alert.alert(
+          t('interest.add.limit.title'),
+          t('interest.add.limit.body', { limit: String(err.limit) }),
+        );
+      } else {
+        Alert.alert(t('common.error'), t('interest.add.error.body'));
+      }
       setPhase('input');
     }
   };

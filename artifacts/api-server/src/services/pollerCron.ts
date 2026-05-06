@@ -36,7 +36,7 @@ const PLAN_INTERVAL_MS: Record<PlanTier, number> = {
 };
 
 const PLAN_INTEREST_CAP: Record<PlanTier, number> = {
-  free: 1,
+  free: 3,
   basic: 5,
   pro: 15,
   power: 30,

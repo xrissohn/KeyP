@@ -1,5 +1,16 @@
 import { Router, type IRouter } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, sql } from "drizzle-orm";
+
+// Stable 32-bit signed int from a device id, for pg_advisory_xact_lock.
+// The hash quality only matters for collision rate (false serialization);
+// correctness comes from the lock itself.
+function deviceLockKey(deviceId: string): number {
+  let h = 5381;
+  for (let i = 0; i < deviceId.length; i++) {
+    h = ((h << 5) + h + deviceId.charCodeAt(i)) | 0;
+  }
+  return h;
+}
 import {
   db,
   pushDevicesTable,
@@ -65,6 +76,8 @@ router.post("/push/track-interest", async (req, res) => {
   // codegen ripple). Whitelist to 'ko'/'en'; default 'ko' for legacy clients.
   const rawLang = (req.body as { userLanguage?: unknown } | undefined)?.userLanguage;
   const userLanguage: "ko" | "en" = rawLang === "en" ? "en" : "ko";
+  const devicePlan = await getPlanForDevice(deviceId);
+  const cap = planInterestCap(devicePlan);
   // Plan propagation: a newly tracked interest inherits the plan of the
   // device's other interests so cadence/quota stay consistent (otherwise the
   // poller defaults to "basic" and a Pro user's new topic would silently
@@ -73,22 +86,52 @@ router.post("/push/track-interest", async (req, res) => {
     ...spec,
     userLanguage,
   };
-  if (!(spec as { plan?: PlanTier }).plan) {
-    const inheritedPlan = await getPlanForDevice(deviceId);
-    if (VALID_PLANS.includes(inheritedPlan)) {
-      mergedSpec = { ...mergedSpec, plan: inheritedPlan };
-    }
+  if (!(spec as { plan?: PlanTier }).plan && VALID_PLANS.includes(devicePlan)) {
+    mergedSpec = { ...mergedSpec, plan: devicePlan };
   }
-  await db
-    .insert(trackedInterestsTable)
-    .values({ interestId, deviceId, spec: mergedSpec, rawText: rawText ?? null })
-    .onConflictDoUpdate({
-      target: trackedInterestsTable.interestId,
-      // Ownership transfer: if the same interestId is reattached to a new
-      // device (rare; only on restore), update the spec/device but keep
-      // sweep history intact.
-      set: { deviceId, spec: mergedSpec, rawText: rawText ?? null },
+
+  // Plan-tier interest cap (free=3, basic=5, pro=15, power=30) enforced
+  // atomically. Without a transaction + per-device advisory lock, two
+  // concurrent track requests could both pass the count check and exceed
+  // the cap (architect-flagged race). We hash the deviceId to a 32-bit int
+  // so pg_advisory_xact_lock serializes ONLY same-device traffic — other
+  // devices are unaffected. The lock auto-releases at COMMIT/ROLLBACK.
+  // The current interestId is excluded from the count so an idempotent
+  // re-track (client retry) at the cap is allowed.
+  const lockKey = deviceLockKey(deviceId);
+  let limitHit: { used: number } | null = null;
+  await db.transaction(async (tx) => {
+    await tx.execute(sql`select pg_advisory_xact_lock(${lockKey})`);
+    const existing = await tx
+      .select({ id: trackedInterestsTable.interestId })
+      .from(trackedInterestsTable)
+      .where(eq(trackedInterestsTable.deviceId, deviceId));
+    const distinctOthers = existing.filter((row) => row.id !== interestId).length;
+    if (distinctOthers >= cap) {
+      limitHit = { used: distinctOthers };
+      return;
+    }
+    await tx
+      .insert(trackedInterestsTable)
+      .values({ interestId, deviceId, spec: mergedSpec, rawText: rawText ?? null })
+      .onConflictDoUpdate({
+        target: trackedInterestsTable.interestId,
+        // Ownership transfer: if the same interestId is reattached to a new
+        // device (rare; only on restore), update the spec/device but keep
+        // sweep history intact.
+        set: { deviceId, spec: mergedSpec, rawText: rawText ?? null },
+      });
+  });
+  if (limitHit) {
+    res.status(403).json({
+      error: "plan_limit",
+      code: "PLAN_LIMIT",
+      plan: devicePlan,
+      used: (limitHit as { used: number }).used,
+      limit: cap,
     });
+    return;
+  }
   res.json(TrackInterestResultSchema.parse({ ok: true, interestId }));
 });
 
