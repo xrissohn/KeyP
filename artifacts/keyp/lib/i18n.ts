@@ -266,6 +266,14 @@ export const STRINGS: Record<string, Record<Language, string>> = {
     ko: '분석 중 오류가 발생했습니다. 다시 시도해주세요.',
     en: 'An error occurred during analysis. Please try again.',
   },
+  'interests.usage.a11y': {
+    ko: '관심사 {n}개 사용 중, 최대 {m}개',
+    en: '{n} of {m} interests in use',
+  },
+  'interests.cap.banner': {
+    ko: '무료 플랜 한도({limit}개)에 도달했어요. 새 관심사를 추가하려면 기존 항목을 삭제해주세요.',
+    en: 'You reached the free plan limit ({limit}). Remove an existing interest to add a new one.',
+  },
   'interest.add.limit.title': {
     ko: '관심사 한도 도달',
     en: 'Interest limit reached',
