@@ -1,5 +1,5 @@
 /* KeyP service worker — install, fetch caching, web push, badging. */
-const CACHE_NAME = "keyp-shell-v3";
+const CACHE_NAME = "keyp-shell-v4";
 const SHELL_ASSETS = [
   "/",
   "/manifest.webmanifest",
