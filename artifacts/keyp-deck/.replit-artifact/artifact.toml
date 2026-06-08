@@ -1,0 +1,31 @@
+kind = "slides"
+previewPath = "/keyp-deck/"
+title = "KeyP 소개 슬라이드"
+version = "1.0.0"
+id = "artifacts/keyp-deck"
+router = "path"
+
+[[integratedSkills]]
+name = "slides"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/keyp-deck/" ]
+localPort = 19947
+
+[services.development]
+run = "pnpm --filter @workspace/keyp-deck run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/keyp-deck", "run", "build" ]
+publicDir = "artifacts/keyp-deck/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "19947"
+BASE_PATH = "/keyp-deck/"
