@@ -137,3 +137,9 @@ id = "1l0GXeCyi-if5y-oAUE8Y"
 uri = "file://screenshots/keyp-en-11-privacy.jpg"
 type = "image"
 title = "11 — Privacy"
+
+[[outputs]]
+id = "72utaQ4pRxRAH1A-9kYj1"
+uri = "file://attached_assets/KAIST OverEdge 창업 아이디어 기술서_KeyP.pdf"
+type = "pdf"
+title = "KAIST OverEdge 창업 아이디어 기술서 — KeyP"

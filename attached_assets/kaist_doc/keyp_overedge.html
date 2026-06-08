@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<title>KAIST OverEdge 창업 아이디어 기술서 — KeyP</title>
+<style>
+  @page { size: A4; margin: 0; }
+  * { margin: 0; padding: 0; box-sizing: border-box; -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  :root{
+    --navy:#0A0E1A; --card:#141929; --ink:#1A2233; --sub:#5A6478;
+    --primary:#4F46E5; --primary2:#5B7FFF; --accent:#FF6B8A;
+    --line:#E4E7EF; --soft:#F4F6FB; --softer:#FAFBFE;
+    --green:#1FB57A;
+  }
+  html{ font-family:'NanumBarunGothic','NanumGothic',sans-serif; color:var(--ink); }
+  body{ font-size:10.5pt; line-height:1.68; letter-spacing:-0.01em; }
+  .page{
+    position:relative; width:210mm; height:297mm; overflow:hidden;
+    background:#fff; page-break-after:always; padding:18mm 17mm 16mm;
+  }
+  .page:last-child{ page-break-after:auto; }
+
+  /* ---------- shared ---------- */
+  h1,h2,h3,h4{ letter-spacing:-0.02em; }
+  .eyebrow{ font-size:8.2pt; font-weight:800; letter-spacing:.18em; color:var(--primary); text-transform:uppercase; }
+  .sec-no{ display:inline-flex; align-items:center; justify-content:center; width:30px; height:30px; border-radius:9px;
+    background:var(--primary); color:#fff; font-weight:800; font-size:13pt; }
+  .sec-head{ display:flex; align-items:center; gap:12px; padding-bottom:11px; border-bottom:2.5px solid var(--navy); margin-bottom:14px; }
+  .sec-head .t{ font-size:17pt; font-weight:800; color:var(--navy); }
+  .sec-head .en{ font-size:9pt; font-weight:700; color:var(--sub); margin-left:auto; letter-spacing:.04em; }
+  p{ margin-bottom:7px; }
+  .lead{ font-size:11pt; color:var(--ink); }
+  strong{ color:var(--navy); font-weight:800; }
+  .hl{ color:var(--primary); font-weight:800; }
+  .hl2{ color:var(--accent); font-weight:800; }
+  .footer{ position:absolute; left:17mm; right:17mm; bottom:9mm; display:flex; justify-content:space-between;
+    font-size:8pt; color:#A6AEC0; border-top:1px solid var(--line); padding-top:5px; }
+  .footer b{ color:var(--primary); font-weight:800; }
+
+  h3.sub{ font-size:11.5pt; font-weight:800; color:var(--navy); margin:13px 0 6px; display:flex; align-items:center; gap:7px; }
+  h3.sub::before{ content:""; width:5px; height:15px; background:var(--primary); border-radius:3px; display:inline-block; }
+
+  ul.k{ list-style:none; margin:4px 0 8px; }
+  ul.k li{ position:relative; padding-left:15px; margin-bottom:4px; }
+  ul.k li::before{ content:""; position:absolute; left:1px; top:8px; width:5px; height:5px; border-radius:50%; background:var(--primary2); }
+
+  table{ width:100%; border-collapse:collapse; font-size:9pt; margin:7px 0 9px; }
+  th,td{ border:1px solid var(--line); padding:6px 8px; vertical-align:middle; text-align:left; }
+  th{ background:var(--navy); color:#fff; font-weight:700; font-size:8.6pt; }
+  tr:nth-child(even) td{ background:var(--softer); }
+  td.c,th.c{ text-align:center; }
+
+  .grid2{ display:grid; grid-template-columns:1fr 1fr; gap:9px; }
+  .grid3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:9px; }
+  .card{ background:var(--soft); border:1px solid var(--line); border-radius:11px; padding:11px 12px; }
+  .card .ct{ font-weight:800; color:var(--navy); font-size:10pt; margin-bottom:3px; display:flex; align-items:center; gap:6px; }
+  .card .cn{ width:22px; height:22px; border-radius:7px; background:var(--primary); color:#fff; display:inline-flex; align-items:center; justify-content:center; font-size:9pt; font-weight:800; }
+  .card p{ font-size:9pt;  margin:0; }
+  .card p{ font-size:9pt; color:#46506a; margin:0; line-height:1.55; }
+
+  .kpis{ display:grid; grid-template-columns:repeat(4,1fr); gap:9px; margin:10px 0; }
+  .kpi{ background:linear-gradient(160deg,#fff,var(--soft)); border:1px solid var(--line); border-radius:12px; padding:11px; text-align:center; }
+  .kpi .v{ font-size:18pt; font-weight:800; color:var(--primary); line-height:1.1; }
+  .kpi .v small{ font-size:10pt; }
+  .kpi .l{ font-size:8pt; color:var(--sub); margin-top:3px; font-weight:600; }
+
+  .note{ background:#EEF1FF; border-left:4px solid var(--primary); border-radius:0 9px 9px 0; padding:9px 12px; font-size:9pt; margin:8px 0; }
+  .note b{ color:var(--primary); }
+  .quote{ background:var(--navy); color:#E8ECF7; border-radius:12px; padding:13px 15px; font-size:10pt; margin:9px 0; }
+  .quote .qm{ color:var(--accent); font-weight:800; }
+
+  .tag{ display:inline-block; background:#EEF1FF; color:var(--primary); border-radius:6px; padding:2px 8px; font-size:8pt; font-weight:700; margin:0 4px 4px 0; }
+
+  /* badges for char count */
+  .cap{ font-size:8pt; color:#B6BCCB; font-weight:700; float:right; }
+</style>
+</head>
+<body>
+
+<!-- ============ COVER ============ -->
+<div class="page" style="padding:0;">
+  <div style="position:absolute; inset:0; background:
+      radial-gradient(900px 520px at 78% -8%, rgba(91,127,255,.30), transparent 60%),
+      radial-gradient(680px 480px at 8% 108%, rgba(255,107,138,.20), transparent 60%),
+      linear-gradient(160deg,#0A0E1A 0%, #11172b 55%, #0A0E1A 100%);"></div>
+
+  <!-- subtle grid -->
+  <div style="position:absolute; inset:0; opacity:.06; background-image:
+      linear-gradient(#fff 1px, transparent 1px), linear-gradient(90deg,#fff 1px, transparent 1px);
+      background-size:34px 34px;"></div>
+
+  <div style="position:absolute; left:22mm; right:22mm; top:26mm; color:#fff;">
+    <div style="display:flex; align-items:center; gap:14px;">
+      <img src="__LOGO__" style="width:74px; height:74px; border-radius:18px; box-shadow:0 12px 36px rgba(79,70,229,.55);">
+      <div>
+        <div style="font-size:13pt; font-weight:800; letter-spacing:.02em;">KeyP</div>
+        <div style="font-size:8.5pt; color:#9AA6C6; letter-spacing:.16em; font-weight:700;">REAL-TIME INTEREST ALERTS · AI AGENTS</div>
+      </div>
+    </div>
+  </div>
+
+  <div style="position:absolute; left:22mm; right:22mm; top:96mm; color:#fff;">
+    <div style="font-size:9pt; font-weight:800; letter-spacing:.2em; color:#8FA0FF;">2026 KAIST OverEdge (오엣)</div>
+    <div style="height:14px;"></div>
+    <div style="font-size:33pt; font-weight:800; line-height:1.18; letter-spacing:-0.03em;">
+      창업 아이디어 기술서
+    </div>
+    <div style="height:18px;"></div>
+    <div style="font-size:14pt; color:#C9D2EC; line-height:1.55; font-weight:600;">
+      관심사를 등록만 하면, AI 에이전트 팀이<br>
+      <span style="color:#fff; font-weight:800;">가장 빠르고 정확한 '속보'</span>를 대신 찾아 알려주는<br>
+      실시간 관심사 알림 · 상호매칭 앱 <span style="color:#8FA0FF; font-weight:800;">KeyP</span>
+    </div>
+  </div>
+
+  <div style="position:absolute; left:22mm; right:22mm; bottom:30mm;">
+    <div style="display:grid; grid-template-columns:1fr 1fr 1fr; gap:0; border-top:1px solid rgba(255,255,255,.18); padding-top:14px;">
+      <div><div style="font-size:8pt; color:#7E8AB0; font-weight:700; letter-spacing:.1em;">분야</div>
+        <div style="color:#fff; font-size:10.5pt; font-weight:700; margin-top:3px;">AI Agent · 정보 / 알림</div></div>
+      <div><div style="font-size:8pt; color:#7E8AB0; font-weight:700; letter-spacing:.1em;">유형</div>
+        <div style="color:#fff; font-size:10.5pt; font-weight:700; margin-top:3px;">1인 (예비)창업</div></div>
+      <div><div style="font-size:8pt; color:#7E8AB0; font-weight:700; letter-spacing:.1em;">상태</div>
+        <div style="color:#fff; font-size:10.5pt; font-weight:700; margin-top:3px;">MVP 구현 완료 · 작동 중</div></div>
+    </div>
+    <div style="display:grid; grid-template-columns:1fr 1fr; gap:0; margin-top:16px;">
+      <div><div style="font-size:8pt; color:#7E8AB0; font-weight:700; letter-spacing:.1em;">신청자 성명</div>
+        <div style="color:#fff; font-size:11pt; font-weight:700; margin-top:4px; border-bottom:1px solid rgba(255,255,255,.25); padding-bottom:6px; width:80%;">　</div></div>
+      <div><div style="font-size:8pt; color:#7E8AB0; font-weight:700; letter-spacing:.1em;">연락처 / 이메일</div>
+        <div style="color:#fff; font-size:11pt; font-weight:700; margin-top:4px; border-bottom:1px solid rgba(255,255,255,.25); padding-bottom:6px; width:80%;">　</div></div>
+    </div>
+  </div>
+</div>
+
+<!-- ============ 요약 소개 ============ -->
+<div class="page">
+  <div class="eyebrow">SUMMARY · 요약 소개</div>
+  <div style="height:6px;"></div>
+  <div class="sec-head">
+    <div class="sec-no">★</div>
+    <div class="t">요약 소개</div>
+    <div class="en">1 PAGE SUMMARY</div>
+  </div>
+  <p class="lead" style="margin-bottom:12px;">
+    <strong>KeyP</strong>는 사용자의 자연어 관심사를 AI가 구조화한 뒤, <span class="hl">여러 AI 에이전트가 분업</span>하여
+    가장 유망한 출처부터 탐색·검증·요약해 <strong>실시간으로 알려주는 모바일 앱</strong>입니다.
+    KeyP 자체가 곧 'AI 에이전트로 만든 1인 창업' 사례로, 본 사업의 취지와 정확히 일치합니다.
+  </p>
+
+  <!-- Problem -->
+  <div style="background:var(--softer); border:1px solid var(--line); border-radius:13px; padding:13px 15px; margin-bottom:11px;">
+    <h3 class="sub" style="margin-top:0;">1. Problem <span style="font-weight:600; color:var(--sub); font-size:9.5pt;">풀고자 하는 문제</span>
+      <span class="cap">250자 이내</span></h3>
+    <p style="margin:0;">
+      정보는 폭증하지만 정작 <strong>'내 관심사'에 대한 결정적 신호</strong>는 늦게 도착합니다. 검색은 사용자가 직접 찾아야 하고,
+      SNS 알고리즘은 참여·광고 중심이라 시의성 있는 개인 맞춤 정보를 놓칩니다. 키워드 단순 매칭은 노이즈가 많고,
+      앞으로 일어날 기회(신제품·채용·행사·트렌드)를 미리 잡지 못합니다. 흩어진 출처를 개인이 일일이 모니터링하는 것은
+      시간·비용상 불가능합니다. <strong>'등록만 하면 알아서, 빠르고 정확하게'</strong> 알려주는 서비스가 부재합니다.
+    </p>
+  </div>
+
+  <!-- Solution -->
+  <div style="background:var(--softer); border:1px solid var(--line); border-radius:13px; padding:13px 15px; margin-bottom:11px;">
+    <h3 class="sub" style="margin-top:0;">2. Solution <span style="font-weight:600; color:var(--sub); font-size:9.5pt;">정의한 문제에 대한 솔루션</span>
+      <span class="cap">250자 이내</span></h3>
+    <p style="margin:0;">
+      KeyP는 자연어 관심사를 구조화(<strong>InterestSpec</strong>)한 뒤, 확률 기반으로 <strong>가장 유망한 출처부터</strong> 탐색하는
+      멀티 AI 에이전트 알림 앱입니다. Planner·Collector·Verifier·Deliverer 네 에이전트가 수집→교차검증→신뢰도 점수→요약 알림을
+      자동화합니다. 무차별 수집 대신 <span class="hl">AlphaGo식 후보 축소</span>로 비용을 최소화하고, 한국어 우선 글로벌 검색·번역을
+      지원합니다. 사용자 간 <strong>opt-in 상호매칭</strong>으로 네트워크 효과까지 확보하며, 작동하는 제품과 구독 BM을 이미 갖췄습니다.
+    </p>
+  </div>
+
+  <!-- AI -->
+  <div style="background:linear-gradient(120deg,#EEF1FF,#fff); border:1px solid #D7DCFF; border-radius:13px; padding:13px 15px;">
+    <h3 class="sub" style="margin-top:0;">3. AI 활용 역량 <span style="font-weight:600; color:var(--sub); font-size:9.5pt;">AI 도메인 전문성 및 활용 계획</span>
+      <span class="cap">250자 이내</span></h3>
+    <p style="margin:0;">
+      창업자는 AI 에이전트를 실제 <strong>'공동창업팀'</strong>으로 삼아 1인으로 풀스택 모바일 앱·백엔드·AI 파이프라인 전체를
+      구축했습니다. GPT 기반 Planner, Perplexity 기반 Collector, Claude 기반 Verifier가 각자 전문 역할을 수행하며, 이는
+      본 사업이 지향하는 <strong>'AI를 창업 파트너로 활용한 1인 창업'</strong>을 그대로 구현한 사례입니다. 프롬프트 캐싱·인플라이트
+      코얼레싱·플랜별 쿼터로 LLM 비용을 통제하고, 사용자 피드백으로 선택 정확도를 학습합니다. 향후 수요 클러스터링과
+      컨텍스추얼 밴딧으로 고도화합니다.
+    </p>
+  </div>
+
+  <div class="kpis" style="margin-top:13px;">
+    <div class="kpi"><div class="v">4<small>개</small></div><div class="l">전문 AI 에이전트</div></div>
+    <div class="kpi"><div class="v">1<small>인</small></div><div class="l">AI 파트너십 창업</div></div>
+    <div class="kpi"><div class="v">100%</div><div class="l">한국어 UI · 글로벌 검색</div></div>
+    <div class="kpi"><div class="v">4<small>단계</small></div><div class="l">구독 BM (Free→Power)</div></div>
+  </div>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>요약 소개 · 1 / 7</span></div>
+</div>
+
+<!-- ============ 상세 1. PROBLEM (p1) ============ -->
+<div class="page">
+  <div class="eyebrow">DETAIL 01 · 풀고자 하는 문제</div>
+  <div style="height:6px;"></div>
+  <div class="sec-head">
+    <div class="sec-no">1</div>
+    <div class="t">Problem · 풀고자 하는 문제</div>
+    <div class="en">MARKET & PAIN</div>
+  </div>
+
+  <h3 class="sub">1-1. 시장 현황 — '정보 과잉, 발견 부족'의 시대</h3>
+  <p>
+    하루에 생성되는 디지털 정보는 사람이 소비할 수 있는 양을 압도합니다. 그 결과 사용자는 더 많이 검색할수록
+    오히려 <strong>정작 중요한 신호를 놓치는 역설</strong>에 빠집니다. 사람들의 정보 소비는 이미 '내가 찾는' 검색에서
+    '알아서 와주는' 알림·피드 중심으로 이동했지만, 현재의 알림은 대부분 <strong>플랫폼이 보여주고 싶은 것</strong>(광고·체류시간)이지
+    <strong>내가 진짜 원하는 것</strong>이 아닙니다.
+  </p>
+  <div class="kpis" style="grid-template-columns:repeat(3,1fr);">
+    <div class="kpi"><div class="v">Pull→Push</div><div class="l">정보 소비 패러다임 이동</div></div>
+    <div class="kpi"><div class="v">개인화</div><div class="l">추천·알림 시장 고성장</div></div>
+    <div class="kpi"><div class="v">크리에이터</div><div class="l">분산된 출처의 폭증</div></div>
+  </div>
+
+  <h3 class="sub">1-2. 핵심 문제 — 세 가지 'Gap'</h3>
+  <div class="grid3">
+    <div class="card">
+      <div class="ct"><span class="cn">1</span>발견의 비대칭</div>
+      <p>정보는 기하급수적으로 늘지만, 개인의 탐색 시간은 한정적이다. 관심사를 챙기려면 유튜브·뉴스·커뮤니티를 매번 직접 돌아야 한다.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">2</span>늦은 신호</div>
+      <p>알았을 때는 이미 늦다. 채용 마감, 티켓 매진, 한정판 품절, 끝나버린 트렌드. <strong>시의성</strong>이 곧 가치인 정보일수록 손실이 크다.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">3</span>노이즈와 불신</div>
+      <p>키워드 단순 매칭은 무관·중복·허위 정보를 쏟아낸다. 출처와 신뢰도가 검증되지 않아 사용자가 일일이 다시 확인해야 한다.</p>
+    </div>
+  </div>
+
+  <div class="quote">
+    <span class="qm">"</span> 사람들이 원하는 것은 '더 많은 검색 결과'가 아니라, <strong style="color:#fff;">내 관심사에 대한 결정적 신호 하나를, 남보다 먼저, 믿을 수 있게</strong> 받는 것이다. <span class="qm">"</span>
+  </div>
+
+  <h3 class="sub">1-3. '미래 신호'를 못 잡는 구조적 한계</h3>
+  <p>
+    기존 도구는 모두 <strong>'이미 일어난 일'</strong>을 사후에 보여주는 데 머문다. 사용자가 진짜 원하는 것은
+    "다음 주에 뜰 것 같은 것", "앞으로 활동이 늘 사람", "내 관심사와 맞는 사람"처럼 <span class="hl">미래지향적·맥락의존적</span>
+    요청이다. 이런 요청은 단순 키워드로는 표현조차 안 되며, '무엇을·왜·어디서·언제까지·어떤 신뢰도로' 원하는지를
+    <strong>구조화해야</strong> 비로소 다룰 수 있다.
+  </p>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>상세 · Problem · 2 / 7</span></div>
+</div>
+
+<!-- ============ 상세 1. PROBLEM (p2) ============ -->
+<div class="page">
+  <div class="eyebrow">DETAIL 01 · 풀고자 하는 문제</div>
+  <div style="height:6px;"></div>
+
+  <h3 class="sub" style="margin-top:4px;">1-4. 기존 대안의 한계 — 왜 아직도 빈자리인가</h3>
+  <table>
+    <thead><tr>
+      <th style="width:20%">대안</th><th>작동 방식</th><th style="width:38%">한계</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><strong>검색엔진</strong></td><td>사용자가 직접 키워드로 당겨옴(Pull)</td><td>매번 사람이 찾아야 함 · 실시간성 없음 · 미래 신호 불가</td></tr>
+      <tr><td><strong>키워드 알리미</strong></td><td>키워드 일치 시 메일 발송</td><td>노이즈·중복 과다 · 한국어/로컬 출처 약함 · 신뢰도 검증 없음</td></tr>
+      <tr><td><strong>SNS 알고리즘</strong></td><td>참여·체류 기반 추천 피드</td><td>광고·중독 최적화 · 내 관심사보다 플랫폼 이익 우선</td></tr>
+      <tr><td><strong>RSS / 모니터링툴</strong></td><td>피드 구독·규칙 설정</td><td>기술 장벽 높음 · 요약/검증 없음 · 일반 사용자 진입 불가</td></tr>
+    </tbody>
+  </table>
+  <div class="note">
+    <b>요약</b> — 어떤 대안도 <strong>'자연어 관심사 → 자동 탐색 → 신뢰도 검증 → 요약 알림'</strong>을 한 번에, 일반 사용자가 쓸 수 있게
+    제공하지 못한다. 이 빈자리가 KeyP의 기회다.
+  </div>
+
+  <h3 class="sub">1-5. 지금이 적기인 이유 (Why Now)</h3>
+  <div class="grid2">
+    <div class="card">
+      <div class="ct">① LLM·에이전트의 성숙</div>
+      <p>자연어를 구조화하고, 출처를 교차검증하고, 요약하는 작업이 <strong>실용 비용</strong>으로 가능해졌다. 2~3년 전이라면 단가가 맞지 않았다.</p>
+    </div>
+    <div class="card">
+      <div class="ct">② 1인 창업의 가능성</div>
+      <p>AI 에이전트를 '동료'로 쓰면 1인이 풀스택 제품을 만들 수 있다. <strong>본 사업이 증명하려는 가설</strong>과 정확히 같은 흐름이다.</p>
+    </div>
+    <div class="card">
+      <div class="ct">③ 검색 API·실시간 소스 개방</div>
+      <p>YouTube 푸시, 커뮤니티 API, 실시간 검색 등 <strong>합법적 공개 경로</strong>가 충분히 열려 비용·정확도 균형을 잡을 수 있다.</p>
+    </div>
+    <div class="card">
+      <div class="ct">④ '알아서 와주는' 정보 수요</div>
+      <p>사용자는 이미 알림·푸시에 익숙하다. 문제는 품질이다. <strong>정확하고 시의성 있는 개인 알림</strong>에 대한 잠재 수요가 크다.</p>
+    </div>
+  </div>
+
+  <h3 class="sub">1-6. 우리가 정의한 '진짜 문제'</h3>
+  <div style="background:var(--navy); color:#E8ECF7; border-radius:13px; padding:15px 17px;">
+    <div style="font-size:12.5pt; font-weight:800; color:#fff; line-height:1.5;">
+      "흩어진 세상의 정보 속에서, <span style="color:#8FA0FF;">내 관심사에 대한 결정적 신호</span>를
+      <span style="color:#FF8FA6;">가장 먼저·정확하게·믿을 수 있게</span> 받을 방법이 없다."
+    </div>
+    <div style="font-size:9pt; color:#9AA6C6; margin-top:9px;">
+      → KeyP는 이 문제를, 무차별 수집이 아니라 <strong style="color:#fff;">'확률 기반으로 똑똑하게 좁혀서 찾는'</strong> 멀티 에이전트 구조로 푼다.
+    </div>
+  </div>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>상세 · Problem · 3 / 7</span></div>
+</div>
+
+<!-- ============ 상세 2. SOLUTION (p1) ============ -->
+<div class="page">
+  <div class="eyebrow">DETAIL 02 · 나의 솔루션</div>
+  <div style="height:6px;"></div>
+  <div class="sec-head">
+    <div class="sec-no">2</div>
+    <div class="t">Solution · 나의 솔루션</div>
+    <div class="en">PRODUCT & EDGE</div>
+  </div>
+
+  <h3 class="sub" style="margin-top:2px;">2-1. 제품 정의</h3>
+  <p>
+    <strong>KeyP</strong>는 <span class="hl">실시간 관심사 알림 + 내부 상호매칭</span> 모바일 앱이다. 사용자가 자연어로 관심사를 등록하면,
+    여러 AI 에이전트가 <strong>가장 가능성 높은 출처부터 좁혀가며</strong> 정보를 찾아 검증하고, 신뢰도·출처·요약이 담긴
+    <strong>알림 카드</strong>로 전달한다. 동시에 KeyP 안의 다른 사용자와 관심사가 양방향으로 맞으면 <strong>opt-in 연결</strong>을 제안한다.
+  </p>
+
+  <h3 class="sub">2-2. 동작 방식 — '검색'이 아니라 '추론 후 좁혀 찾기'</h3>
+  <!-- pipeline SVG -->
+  <div style="background:var(--softer); border:1px solid var(--line); border-radius:13px; padding:12px 10px 6px;">
+  <svg viewBox="0 0 760 150" style="width:100%; height:auto;" font-family="NanumBarunGothic,sans-serif">
+    <defs>
+      <marker id="ar" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+        <path d="M0,0 L6,3 L0,6 Z" fill="#5B7FFF"/>
+      </marker>
+      <linearGradient id="gp" x1="0" y1="0" x2="1" y2="0">
+        <stop offset="0" stop-color="#4F46E5"/><stop offset="1" stop-color="#5B7FFF"/>
+      </linearGradient>
+    </defs>
+    <!-- input -->
+    <rect x="6" y="52" width="96" height="46" rx="10" fill="#0A0E1A"/>
+    <text x="54" y="73" text-anchor="middle" fill="#fff" font-size="11" font-weight="700">자연어</text>
+    <text x="54" y="88" text-anchor="middle" fill="#9AA6C6" font-size="8.5">관심사 입력</text>
+    <!-- stages -->
+    <g>
+      <rect x="126" y="48" width="112" height="54" rx="11" fill="url(#gp)"/>
+      <text x="182" y="68" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="800">Planner</text>
+      <text x="182" y="82" text-anchor="middle" fill="#DfE4FF" font-size="8">GPT · 구조화</text>
+      <text x="182" y="93" text-anchor="middle" fill="#DfE4FF" font-size="7.5">InterestSpec·전략</text>
+
+      <rect x="262" y="48" width="112" height="54" rx="11" fill="url(#gp)"/>
+      <text x="318" y="68" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="800">Collector</text>
+      <text x="318" y="82" text-anchor="middle" fill="#DfE4FF" font-size="8">Perplexity · 수집</text>
+      <text x="318" y="93" text-anchor="middle" fill="#DfE4FF" font-size="7.5">유망 출처 탐색</text>
+
+      <rect x="398" y="48" width="112" height="54" rx="11" fill="url(#gp)"/>
+      <text x="454" y="68" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="800">Verifier</text>
+      <text x="454" y="82" text-anchor="middle" fill="#DfE4FF" font-size="8">Claude · 검증</text>
+      <text x="454" y="93" text-anchor="middle" fill="#DfE4FF" font-size="7.5">신뢰도·관련도 점수</text>
+
+      <rect x="534" y="48" width="112" height="54" rx="11" fill="url(#gp)"/>
+      <text x="590" y="68" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="800">Deliverer</text>
+      <text x="590" y="82" text-anchor="middle" fill="#DfE4FF" font-size="8">정렬·중복제거</text>
+      <text x="590" y="93" text-anchor="middle" fill="#DfE4FF" font-size="7.5">요약 알림 카드</text>
+    </g>
+    <!-- output -->
+    <rect x="670" y="52" width="84" height="46" rx="10" fill="#FF6B8A"/>
+    <text x="712" y="73" text-anchor="middle" fill="#fff" font-size="10.5" font-weight="800">속보 알림</text>
+    <text x="712" y="88" text-anchor="middle" fill="#FFE3EA" font-size="8">+ 상호매칭</text>
+    <!-- arrows -->
+    <line x1="102" y1="75" x2="124" y2="75" stroke="#5B7FFF" stroke-width="2.2" marker-end="url(#ar)"/>
+    <line x1="238" y1="75" x2="260" y2="75" stroke="#5B7FFF" stroke-width="2.2" marker-end="url(#ar)"/>
+    <line x1="374" y1="75" x2="396" y2="75" stroke="#5B7FFF" stroke-width="2.2" marker-end="url(#ar)"/>
+    <line x1="510" y1="75" x2="532" y2="75" stroke="#5B7FFF" stroke-width="2.2" marker-end="url(#ar)"/>
+    <line x1="646" y1="75" x2="668" y2="75" stroke="#5B7FFF" stroke-width="2.2" marker-end="url(#ar)"/>
+    <!-- feedback loop -->
+    <path d="M712 100 L712 132 L182 132 L182 104" fill="none" stroke="#1FB57A" stroke-width="1.8" stroke-dasharray="5 4" marker-end="url(#ar)"/>
+    <text x="447" y="128" text-anchor="middle" fill="#1FB57A" font-size="8.5" font-weight="700">사용자 피드백(좋아요·저장·숨김) → 다음 탐색 우선순위 학습</text>
+    <text x="54" y="30" text-anchor="middle" fill="#5A6478" font-size="8.5" font-weight="700">INPUT</text>
+    <text x="712" y="30" text-anchor="middle" fill="#5A6478" font-size="8.5" font-weight="700">OUTPUT</text>
+  </svg>
+  </div>
+  <ul class="k" style="margin-top:9px;">
+    <li><strong>Planner</strong>가 자연어를 구조화(InterestSpec)하고 '어디를·어떻게 찾을지' 검색 전략을 세운다.</li>
+    <li><strong>Collector</strong>가 무차별이 아니라 <span class="hl">전략대로 유망 출처만</span> 실제 웹에서 수집한다.</li>
+    <li><strong>Verifier</strong>가 출처를 교차검증해 <strong>신뢰도·관련도 점수</strong>를 매긴다.</li>
+    <li><strong>Deliverer</strong>가 최신성·신뢰도로 정렬하고 <span class="hl">의미 기반 중복제거</span> 후 요약 알림으로 전달한다.</li>
+  </ul>
+
+  <div class="note"><b>핵심 철학</b> — "모든 키워드를 모든 곳에서 계속 긁지 않는다." AlphaGo가 유망한 수만 깊게 읽듯,
+    KeyP도 <strong>가능성 높은 후보부터 좁혀</strong> 비용은 줄이고 속도·정확도는 높인다.</div>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>상세 · Solution · 4 / 7</span></div>
+</div>
+
+<!-- ============ 상세 2. SOLUTION (p2) ============ -->
+<div class="page">
+  <div class="eyebrow">DETAIL 02 · 나의 솔루션</div>
+  <div style="height:6px;"></div>
+
+  <h3 class="sub" style="margin-top:4px;">2-3. 제품 차별성 — 4가지 'Edge'</h3>
+  <div class="grid2">
+    <div class="card">
+      <div class="ct"><span class="cn">A</span>멀티 에이전트 정밀도</div>
+      <p>수집·검증·전달을 분업해 노이즈를 걸러낸다. 단순 키워드가 아닌 <strong>맥락·의도 기반</strong>으로 찾아 정확도가 높다.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">B</span>검증된 신뢰도 + 출처</div>
+      <p>모든 알림에 <strong>신뢰도 점수·근거·원문 링크</strong>를 함께 제공. 죽은 링크 차단·중복 제거로 '믿고 누르는' 경험.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">C</span>한국어 우선 · 글로벌</div>
+      <p>한국어 UI로 쓰면서 <strong>전 세계 출처를 검색하고 자동 번역</strong>. 로컬 사용자가 글로벌 정보를 시차 없이 받는다.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">D</span>opt-in 상호매칭</div>
+      <p>같은 관심사의 사용자를 <strong>양방향 동의 시에만</strong> 연결. 사용자가 늘수록 가치가 커지는 <strong>네트워크 효과</strong>.</p>
+    </div>
+  </div>
+
+  <h3 class="sub">2-4. 경쟁력 — '아이디어'가 아니라 '작동하는 제품'</h3>
+  <p>KeyP는 기획안이 아니라 <strong>이미 구현되어 작동하는 MVP</strong>다. 실시간 수집·푸시 알림·피드백 학습·비용 최적화가
+    실제 코드로 돌아간다. 이것이 본 사업 1·2차 평가에서의 핵심 경쟁력이다.</p>
+
+  <div class="grid2" style="margin-bottom:10px;">
+    <div>
+      <h4 style="font-size:9.5pt; color:var(--navy); font-weight:800; margin-bottom:5px;">이미 구현된 것 (현재)</h4>
+      <ul class="k">
+        <li>4개 AI 에이전트 실시간 파이프라인</li>
+        <li>관심사 추가 시 <strong>에이전트 진행 과정 시각화</strong></li>
+        <li>실시간 백그라운드 폴링 + 푸시 알림(PWA Web Push)</li>
+        <li>의미 기반 중복제거 · 죽은 링크 차단</li>
+        <li>좋아요/별로예요 <strong>피드백 학습</strong> 반영</li>
+        <li>비용 최적화(캐싱·코얼레싱·플랜별 쿼터)</li>
+      </ul>
+    </div>
+    <div>
+      <h4 style="font-size:9.5pt; color:var(--navy); font-weight:800; margin-bottom:5px;">수익 모델 (구독 4단계)</h4>
+      <table style="margin-top:2px;">
+        <thead><tr><th>플랜</th><th class="c">관심사</th><th class="c">알림 빈도</th></tr></thead>
+        <tbody>
+          <tr><td><strong>Free</strong></td><td class="c">3개</td><td class="c">기본</td></tr>
+          <tr><td><strong>Basic</strong></td><td class="c">↑</td><td class="c">상향</td></tr>
+          <tr><td><strong>Pro</strong></td><td class="c">↑↑</td><td class="c">고빈도</td></tr>
+          <tr><td><strong>Power</strong></td><td class="c">최대</td><td class="c">최고빈도+부스트</td></tr>
+        </tbody>
+      </table>
+      <p style="font-size:8pt; color:var(--sub); margin-top:3px;">관심사 수·알림 빈도·월 부스트 쿼터로 차등.</p>
+    </div>
+  </div>
+
+  <!-- phone mockups -->
+  <h3 class="sub">2-5. 사용자 경험 (앱 화면)</h3>
+  <div style="display:flex; gap:14px; justify-content:center; margin-top:4px;">
+    <!-- phone 1: feed -->
+    <div style="width:150px;">
+      <div style="background:#0A0E1A; border-radius:20px; padding:9px 8px 12px; box-shadow:0 8px 22px rgba(10,14,26,.25);">
+        <div style="height:5px; width:38px; background:#2A3147; border-radius:5px; margin:2px auto 8px;"></div>
+        <div style="color:#fff; font-size:8.5pt; font-weight:800; padding:0 3px 7px; display:flex; justify-content:space-between;">
+          속보 피드 <span style="background:#FF6B8A; color:#fff; border-radius:8px; padding:0 6px; font-size:7pt;">3 NEW</span></div>
+        <div style="background:#141929; border-radius:9px; padding:7px; margin-bottom:6px;">
+          <div style="color:#5B7FFF; font-size:6.5pt; font-weight:800;">● 신뢰도 92 · YouTube</div>
+          <div style="color:#fff; font-size:7.5pt; font-weight:700; margin:2px 0; line-height:1.3;">관심사 신제품 공개 영상 업로드</div>
+          <div style="color:#8A93AB; font-size:6.5pt;">방금 · 요약 + 원문 링크</div>
+        </div>
+        <div style="background:#141929; border-radius:9px; padding:7px; margin-bottom:6px;">
+          <div style="color:#5B7FFF; font-size:6.5pt; font-weight:800;">● 신뢰도 87 · News</div>
+          <div style="color:#fff; font-size:7.5pt; font-weight:700; margin:2px 0; line-height:1.3;">관련 채용 공고 마감 임박</div>
+          <div style="color:#8A93AB; font-size:6.5pt;">12분 전 · 요약</div>
+        </div>
+        <div style="background:#141929; border-radius:9px; padding:7px;">
+          <div style="color:#5B7FFF; font-size:6.5pt; font-weight:800;">● 신뢰도 81 · Reddit</div>
+          <div style="color:#fff; font-size:7.5pt; font-weight:700; margin:2px 0; line-height:1.3;">커뮤니티 트렌드 반응 급증</div>
+          <div style="color:#8A93AB; font-size:6.5pt;">28분 전 · 요약</div>
+        </div>
+      </div>
+      <div style="text-align:center; font-size:7.5pt; color:var(--sub); margin-top:5px; font-weight:700;">① 실시간 속보 피드</div>
+    </div>
+    <!-- phone 2: add interest -->
+    <div style="width:150px;">
+      <div style="background:#0A0E1A; border-radius:20px; padding:9px 8px 12px; box-shadow:0 8px 22px rgba(10,14,26,.25);">
+        <div style="height:5px; width:38px; background:#2A3147; border-radius:5px; margin:2px auto 8px;"></div>
+        <div style="color:#fff; font-size:8.5pt; font-weight:800; padding:0 3px 7px;">관심사 추가</div>
+        <div style="background:#141929; border-radius:9px; padding:7px; margin-bottom:7px; color:#C9D2EC; font-size:7pt;">
+          "다음 달 출시될 신제품 소식 빠르게"</div>
+        <div style="color:#8FA0FF; font-size:6.5pt; font-weight:800; margin-bottom:4px;">AI 에이전트 분석 중…</div>
+        <div style="display:flex; flex-direction:column; gap:4px;">
+          <div style="background:#1b2236; border-radius:7px; padding:5px 7px; color:#fff; font-size:7pt;"><span style="color:#1FB57A;">✓</span> Planner · 의도 구조화</div>
+          <div style="background:#1b2236; border-radius:7px; padding:5px 7px; color:#fff; font-size:7pt;"><span style="color:#1FB57A;">✓</span> Collector · 출처 탐색</div>
+          <div style="background:#1b2236; border-radius:7px; padding:5px 7px; color:#fff; font-size:7pt;"><span style="color:#5B7FFF;">◐</span> Verifier · 신뢰도 검증</div>
+          <div style="background:#1b2236; border-radius:7px; padding:5px 7px; color:#6B7691; font-size:7pt;">○ Deliverer · 요약 전달</div>
+        </div>
+      </div>
+      <div style="text-align:center; font-size:7.5pt; color:var(--sub); margin-top:5px; font-weight:700;">② 에이전트 과정 시각화</div>
+    </div>
+    <!-- phone 3: match -->
+    <div style="width:150px;">
+      <div style="background:#0A0E1A; border-radius:20px; padding:9px 8px 12px; box-shadow:0 8px 22px rgba(10,14,26,.25);">
+        <div style="height:5px; width:38px; background:#2A3147; border-radius:5px; margin:2px auto 8px;"></div>
+        <div style="color:#fff; font-size:8.5pt; font-weight:800; padding:0 3px 7px;">상호매칭</div>
+        <div style="background:linear-gradient(135deg,#1b2236,#241b30); border-radius:9px; padding:9px; text-align:center; margin-bottom:7px;">
+          <div style="color:#FF8FA6; font-size:7pt; font-weight:800;">서로 관심사 일치</div>
+          <div style="color:#fff; font-size:8.5pt; font-weight:800; margin:4px 0;">관심사 89% 일치</div>
+          <div style="color:#9AA6C6; font-size:6.5pt;">양쪽 동의 시에만 연결</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <div style="flex:1; background:#5B7FFF; color:#fff; border-radius:8px; text-align:center; padding:6px 0; font-size:7pt; font-weight:800;">연결 요청</div>
+          <div style="flex:1; background:#1b2236; color:#9AA6C6; border-radius:8px; text-align:center; padding:6px 0; font-size:7pt; font-weight:700;">나중에</div>
+        </div>
+      </div>
+      <div style="text-align:center; font-size:7.5pt; color:var(--sub); margin-top:5px; font-weight:700;">③ opt-in 상호매칭</div>
+    </div>
+  </div>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>상세 · Solution · 5 / 7</span></div>
+</div>
+
+<!-- ============ 상세 3. AI 활용 역량 (p1) ============ -->
+<div class="page">
+  <div class="eyebrow">DETAIL 03 · AI 활용 역량</div>
+  <div style="height:6px;"></div>
+  <div class="sec-head">
+    <div class="sec-no">3</div>
+    <div class="t">AI 활용 역량</div>
+    <div class="en">AI AGENTS AS CO-FOUNDERS</div>
+  </div>
+
+  <div class="quote" style="margin-top:0;">
+    <span class="qm">"</span> KeyP는 'AI를 쓰는 앱'이면서, 동시에 <strong style="color:#fff;">'AI 에이전트를 공동창업팀으로 삼아 1인이 만든 앱'</strong>이다.
+    제품과 창업 과정 양쪽에서 본 사업의 취지를 그대로 구현한다. <span class="qm">"</span>
+  </div>
+
+  <h3 class="sub">3-1. AI Agent 팀원 — 역할이 분명한 '공동창업팀'</h3>
+  <table>
+    <thead><tr>
+      <th style="width:16%">에이전트</th><th style="width:20%">담당 모델</th><th>창업팀에서의 역할</th>
+    </tr></thead>
+    <tbody>
+      <tr><td><strong>Planner</strong></td><td>OpenAI GPT 계열</td><td>'기획자' — 자연어 관심사를 InterestSpec으로 구조화하고 검색 전략·페르소나를 설계</td></tr>
+      <tr><td><strong>Collector</strong></td><td>Perplexity (Sonar)</td><td>'리서처' — 전략에 따라 실제 웹에서 유망 출처를 탐색·수집</td></tr>
+      <tr><td><strong>Verifier</strong></td><td>Anthropic Claude</td><td>'검증 담당' — 출처 교차검증, 신뢰도·관련도 점수 산정</td></tr>
+      <tr><td><strong>Deliverer</strong></td><td>규칙 + 통계</td><td>'편집장' — 최신성·신뢰도 정렬, 의미 기반 중복제거 후 요약 전달</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><b>설계 원칙</b> — 비싼 LLM 호출은 <strong>애매한 소수 후보 판정</strong>에만 쓴다. 탐색·축소·중복제거는
+    규칙·통계·캐시가 담당한다. 그래서 정확도는 유지하면서 비용은 통제된다.</div>
+
+  <h3 class="sub">3-2. 현재 활용 현황 (이미 작동 중)</h3>
+  <div class="grid2">
+    <div class="card">
+      <div class="ct">실시간 수집·전달</div>
+      <p>관심사별 백그라운드 폴링 → 신규 신호 감지 → <strong>푸시 알림</strong>(PWA Web Push, 모든 탭이 닫혀도 발송).</p>
+    </div>
+    <div class="card">
+      <div class="ct">신뢰·중복 제어</div>
+      <p>의미 기반 <strong>중복제거(Jaccard 유사도)</strong>, 죽은 링크 차단, 클릭 시점 안전 검사로 '믿고 누르는' 경험.</p>
+    </div>
+    <div class="card">
+      <div class="ct">피드백 학습</div>
+      <p>좋아요/별로예요를 <strong>가중치로 반영</strong>(감쇠 포함)해 Verifier 판정과 알림 선택을 개인화.</p>
+    </div>
+    <div class="card">
+      <div class="ct">비용 최적화</div>
+      <p><strong>스펙-버킷 캐싱·인플라이트 코얼레싱·월 부스트 쿼터</strong>로 동일 작업을 재사용하고 LLM 단가를 통제.</p>
+    </div>
+  </div>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>상세 · AI 활용 역량 · 6 / 7</span></div>
+</div>
+
+<!-- ============ 상세 3. AI 활용 역량 (p2) ============ -->
+<div class="page">
+  <div class="eyebrow">DETAIL 03 · AI 활용 역량</div>
+  <div style="height:6px;"></div>
+
+  <h3 class="sub" style="margin-top:4px;">3-3. 1인 창업 × AI 파트너십 — 본 사업 적합성</h3>
+  <p>
+    창업자는 별도 팀 없이, AI 에이전트를 <strong>실질적 동료</strong>로 활용해 모바일 앱(Expo·React Native), 백엔드(API 서버),
+    데이터베이스, 그리고 4개 에이전트 AI 파이프라인까지 <span class="hl">전체 스택을 1인으로 구축</span>했다. 이는
+    "AI를 창업 파트너로 활용하여 1인 창업자의 시장 진입을 가속한다"는 <strong>OverEdge의 핵심 가설을 이미 실증</strong>한 사례다.
+  </p>
+  <table>
+    <thead><tr><th style="width:34%">평가 관점</th><th>KeyP의 부합 근거</th></tr></thead>
+    <tbody>
+      <tr><td><strong>문제인식</strong></td><td>'정보 과잉 속 발견 부족'이라는 보편적·시의성 있는 문제를 구조적으로 정의</td></tr>
+      <tr><td><strong>창업의지·실현가능성</strong></td><td>기획이 아닌 <strong>작동하는 MVP</strong> 보유 · 구독 BM 설계 완료</td></tr>
+      <tr><td><strong>AI 활용 역량</strong></td><td>AI를 제품 엔진이자 <strong>공동창업팀</strong>으로 동시 활용</td></tr>
+      <tr><td><strong>AX 구현 (2차)</strong></td><td>멀티 에이전트 오케스트레이션을 실제 코드로 구현·운영</td></tr>
+      <tr><td><strong>기술·시장 (2차)</strong></td><td>비용 최적화 아키텍처 + 네트워크 효과형 시장 확장 경로</td></tr>
+    </tbody>
+  </table>
+
+  <h3 class="sub">3-4. AI 기술 활용 계획 (고도화 로드맵)</h3>
+  <div class="grid3">
+    <div class="card">
+      <div class="ct"><span class="cn">1</span>수요 클러스터링</div>
+      <p>유사 관심사를 묶어 <strong>공통 수집 1회 → 개인화 재정렬</strong>. 사용자가 늘수록 1인당 비용이 내려가는 구조.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">2</span>컨텍스추얼 밴딧</div>
+      <p>맥락별로 어떤 출처가 빠르고 정확했는지 학습해 <strong>탐색-활용</strong>을 최적화하는 소스 라우팅.</p>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="cn">3</span>상호매칭 고도화</div>
+      <p>reciprocal recommendation으로 <strong>양방향 적합성</strong>을 정밀화하고 안전한 opt-in 연결 강화.</p>
+    </div>
+  </div>
+
+  <h3 class="sub">3-5. 본 프로그램으로 가속할 부분</h3>
+  <ul class="k">
+    <li><strong>AI 베이스캠프·워킹그룹</strong>: KAIST 석·박사 매칭으로 에이전트 아키텍처를 딥테크 수준으로 고도화.</li>
+    <li><strong>BM 검증·투자 관점</strong>: AC/VC 전문가와 구독 단가·전환·리텐션 KPI를 데이터 기반으로 정교화.</li>
+    <li><strong>운영 인프라·글로벌</strong>: AI Agent 운영 인프라 지원으로 실시간 수집 비용·안정성을 확보하고 글로벌 진출 연계.</li>
+  </ul>
+
+  <div style="background:var(--navy); color:#E8ECF7; border-radius:13px; padding:14px 17px; margin-top:8px;">
+    <div style="font-size:11.5pt; font-weight:800; color:#fff; line-height:1.5;">
+      KeyP는 <span style="color:#8FA0FF;">이미 작동하는 AI 에이전트 제품</span>이자,
+      <span style="color:#FF8FA6;">AI를 공동창업팀으로 삼은 1인 창업</span>의 살아있는 증거입니다.
+    </div>
+    <div style="font-size:9pt; color:#9AA6C6; margin-top:8px;">
+      OverEdge의 기술·네트워크·투자와 결합하면, '내 관심사를 가장 먼저·정확하게' 알려주는 글로벌 서비스로 성장할 준비가 되어 있습니다.
+    </div>
+  </div>
+
+  <div class="footer"><span><b>KeyP</b> · KAIST OverEdge 창업 아이디어 기술서</span><span>상세 · AI 활용 역량 · 7 / 7</span></div>
+</div>
+
+</body>
+</html>
