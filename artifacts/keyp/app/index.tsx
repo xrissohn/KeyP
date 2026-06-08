@@ -17,5 +17,5 @@ export default function Index() {
 
   if (!isOnboarded) return <Redirect href="/onboarding" />;
   if (!user) return <Redirect href="/(auth)/login" />;
-  return <Redirect href="/(tabs)/" />;
+  return <Redirect href="/(tabs)" />;
 }

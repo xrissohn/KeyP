@@ -11,15 +11,15 @@
 }
 
 :root {
-  /* Replace these with brand colors */
-  --slide-primary: #4f46e5;
-  --slide-accent: #06b6d4;
-  --slide-bg: #f8fafc;
-  --slide-text: #0f172a;
-  --slide-muted: #64748b;
-  --font-display-family: "Inter", system-ui, sans-serif;
-  --font-body-family: "Inter", system-ui, sans-serif;
-  color-scheme: light;
+  /* KeyP brand (dark) */
+  --slide-primary: #5b7fff;
+  --slide-accent: #ff6b8a;
+  --slide-bg: #0a0e1a;
+  --slide-text: #ffffff;
+  --slide-muted: #9aa4c0;
+  --font-display-family: "Sora", system-ui, sans-serif;
+  --font-body-family: "Noto Sans KR", system-ui, sans-serif;
+  color-scheme: dark;
 }
 
 html,
