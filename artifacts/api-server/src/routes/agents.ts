@@ -15,6 +15,7 @@ import type {
 import { openai } from "@workspace/integrations-openai-ai-server";
 import { openrouter } from "@workspace/integrations-openrouter-ai";
 import { anthropic } from "@workspace/integrations-anthropic-ai";
+import { AI_ENABLED } from "../lib/featureFlags";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { isIP } from "node:net";
 import {
@@ -367,6 +368,11 @@ function extractJsonObject(text: string): unknown {
 }
 
 router.post("/agents/parse-interest", async (req, res) => {
+  // Master AI kill switch: short-circuit before any paid LLM call.
+  if (!AI_ENABLED) {
+    res.status(503).json({ error: "AI features are temporarily disabled.", code: "AI_DISABLED" });
+    return;
+  }
   const parsed = ParseInterestBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
@@ -660,6 +666,11 @@ function defaultSourceType(
 }
 
 router.post("/agents/generate-alerts", async (req, res) => {
+  // Master AI kill switch: short-circuit before any paid LLM call.
+  if (!AI_ENABLED) {
+    res.status(503).json({ error: "AI features are temporarily disabled.", code: "AI_DISABLED" });
+    return;
+  }
   const parsed = GenerateAlertsBody.safeParse(req.body);
   if (!parsed.success) {
     res.status(400).json({ error: "Invalid request", details: parsed.error.flatten() });
