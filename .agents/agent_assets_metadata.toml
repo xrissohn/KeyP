@@ -143,3 +143,9 @@ id = "72utaQ4pRxRAH1A-9kYj1"
 uri = "file://attached_assets/KAIST OverEdge 창업 아이디어 기술서_KeyP.pdf"
 type = "pdf"
 title = "KAIST OverEdge 창업 아이디어 기술서 — KeyP"
+
+[[outputs]]
+id = "gcYmXbgbuRkYHMLTS2FfD"
+uri = "file://attached_assets/KAIST OverEdge KeyP 소개 슬라이드_KeyP.pptx"
+type = "slides"
+title = "KeyP 소개 슬라이드 (세로형 · 편집 가능 PPTX)"
