@@ -1,0 +1,54 @@
+{
+  "expo": {
+    "name": "KeyP",
+    "slug": "keyp",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/keyp-logo.png",
+    "scheme": "keyp",
+    "userInterfaceStyle": "automatic",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/images/keyp-logo.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "icon": "./assets/images/keyp-logo.png"
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/images/keyp-logo.png",
+        "backgroundColor": "#5B7FFF"
+      }
+    },
+    "web": {
+      "favicon": "./assets/images/keyp-logo.png",
+      "bundler": "metro",
+      "output": "single",
+      "name": "KeyP",
+      "shortName": "KeyP",
+      "lang": "ko",
+      "themeColor": "#5B7FFF",
+      "backgroundColor": "#ffffff",
+      "display": "standalone",
+      "orientation": "portrait",
+      "description": "관심사를 등록하고 실시간 속보를 가장 먼저 받아보세요."
+    },
+    "plugins": [
+      [
+        "expo-router",
+        {
+          "origin": "https://replit.com/"
+        }
+      ],
+      "expo-font",
+      "expo-web-browser"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}

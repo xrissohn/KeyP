@@ -1,0 +1,21 @@
+{
+  "name": "@workspace/integrations-openai-ai-server",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "openai": "^4.104.0"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "~5.9.2"
+  }
+}

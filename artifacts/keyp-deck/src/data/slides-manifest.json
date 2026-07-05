@@ -1,0 +1,114 @@
+[
+  {
+    "id": "cover",
+    "position": 1,
+    "filepath": "src/pages/slides/01-cover.tsx",
+    "title": "요약 ① — 표지",
+    "description": "KeyP 소개 표지: 관심사를 등록하면 AI 에이전트 팀이 대신 찾아 알려주는 속보 앱. 핵심 요약 지표 포함.",
+    "speakerNotes": "KeyP는 자연어 관심사 등록 → 4개 AI 에이전트 파이프라인 → 신뢰도 검증된 알림 + opt-in 상호매칭. 2026 KAIST OverEdge 창업 아이디어."
+  },
+  {
+    "id": "summary",
+    "position": 2,
+    "filepath": "src/pages/slides/02-summary.tsx",
+    "title": "요약 ② — 한눈에 보기",
+    "description": "Problem / Solution / AI 활용 역량 세 축을 한 장으로 요약하고 핵심 사실(MVP·구독·매칭)을 정리.",
+    "speakerNotes": "정보와 사람을 동시에 연결. MVP 작동 중, 구독 BM, opt-in 상호매칭이 핵심 사실."
+  },
+  {
+    "id": "problem-core",
+    "position": 3,
+    "filepath": "src/pages/slides/03-problem-core.tsx",
+    "title": "Problem ① — 핵심 문제",
+    "description": "정보는 넘치는데 내 관심사의 결정적 신호는 항상 늦게 도착한다는 핵심 문제 정의.",
+    "speakerNotes": "정보량은 폭발했지만 제때·정확하게 받는 것은 더 어려워졌다."
+  },
+  {
+    "id": "problem-four",
+    "position": 4,
+    "filepath": "src/pages/slides/04-problem-four.tsx",
+    "title": "Problem ② — 네 가지 문제",
+    "description": "검색은 직접 찾아야 함, 키워드 알림 노이즈, SNS 광고·체류용, 흩어진 출처 검증 불가.",
+    "speakerNotes": "지금 방식이 막혀 있는 네 가지 구체적 이유."
+  },
+  {
+    "id": "problem-cost",
+    "position": 5,
+    "filepath": "src/pages/slides/05-problem-cost.tsx",
+    "title": "Problem ③ — 그래서 생기는 비용",
+    "description": "사용자가 잃는 것: 놓친 타이밍, 정보 과부하, 검증 불가.",
+    "speakerNotes": "세 손실이 쌓일수록 더 많이 보면서도 뒤처지고 불안해진다."
+  },
+  {
+    "id": "problem-who",
+    "position": 6,
+    "filepath": "src/pages/slides/06-problem-who.tsx",
+    "title": "Problem ④ — 누가 절실한가",
+    "description": "투자·시장 추적자, 특정 분야 팬·덕후, 연구자·전문가, 채용·이직 탐색자 페르소나.",
+    "speakerNotes": "빠르고 정확한 신호가 돈·시간이 되는 사람들이 핵심 타깃."
+  },
+  {
+    "id": "solution-overview",
+    "position": 7,
+    "filepath": "src/pages/slides/07-solution-overview.tsx",
+    "title": "Solution ① — 해결책 개요",
+    "description": "등록만 하면 AI가 대신 찾아 알려준다. 자연어 등록·전략 수립·검증 알림·속보 피드 4단계 경험.",
+    "speakerNotes": "사용자는 관심사만 등록, 나머지는 AI 파이프라인이 처리."
+  },
+  {
+    "id": "solution-mvp",
+    "position": 8,
+    "filepath": "src/pages/slides/08-solution-mvp.tsx",
+    "title": "Solution ② — 작동하는 MVP",
+    "description": "관심사 관리·AI 분석 화면과 함께 이미 구현된 6가지 기능 체크리스트.",
+    "speakerNotes": "기획안이 아니라 실제 작동하는 제품임을 강조."
+  },
+  {
+    "id": "solution-matching",
+    "position": 9,
+    "filepath": "src/pages/slides/09-solution-matching.tsx",
+    "title": "Solution ③ — opt-in 상호매칭",
+    "description": "같은 관심사를 가진 사람과 양방향 동의 시에만 안전하게 연결. 정보와 사람을 한 앱에서.",
+    "speakerNotes": "opt-in·안전장치·네트워크 효과·알림+연결이 강점."
+  },
+  {
+    "id": "solution-pricing",
+    "position": 10,
+    "filepath": "src/pages/slides/10-solution-pricing.tsx",
+    "title": "Solution ④ — 수익 모델",
+    "description": "Free → Basic → Pro → Power 4단계 구독. 관심사 수·알림 빈도로 차등.",
+    "speakerNotes": "업셀 구조로 OverEdge 시드·스케일 연계 가능."
+  },
+  {
+    "id": "ai-architecture",
+    "position": 11,
+    "filepath": "src/pages/slides/11-ai-architecture.tsx",
+    "title": "AI 활용 역량 ① — 멀티 에이전트 아키텍처",
+    "description": "검색이 아니라 추론 후 좌표 찾기. Planner→Collector→Verifier→Deliverer 파이프라인과 AlphaGo식 후보 축소 철학.",
+    "speakerNotes": "가능성 높은 후보부터 좌표를 찾아 비용↓ 속도·정확도↑."
+  },
+  {
+    "id": "ai-agents",
+    "position": 12,
+    "filepath": "src/pages/slides/12-ai-agents.tsx",
+    "title": "AI 활용 역량 ② — 에이전트별 역할과 모델",
+    "description": "Planner(GPT), Collector(Perplexity sonar-pro), Verifier(Claude), Deliverer(Sort·Dedup) 역할 정리.",
+    "speakerNotes": "각 단계마다 가장 적합한 전문 모델을 분업 배치."
+  },
+  {
+    "id": "ai-quality",
+    "position": 13,
+    "filepath": "src/pages/slides/13-ai-quality.tsx",
+    "title": "AI 활용 역량 ③ — 품질과 비용 설계",
+    "description": "의미 기반 중복제거, 출처 교차검증, 피드백 학습, 비용 최적화 메커니즘.",
+    "speakerNotes": "쓸수록 똑똑해지고 싸지는 구조를 설계로 보장."
+  },
+  {
+    "id": "ai-founder",
+    "position": 14,
+    "filepath": "src/pages/slides/14-ai-founder.tsx",
+    "title": "AI 활용 역량 ④ — 1인 창업 × AI",
+    "description": "KeyP 자체가 AI를 공동창업팀으로 삼은 1인 창업 사례. OverEdge 적합성과 마무리 메시지.",
+    "speakerNotes": "문제인식·실현가능·AI 역량·AX 구현·확장경로 다섯 축으로 OverEdge 적합성 정리."
+  }
+]

@@ -1,0 +1,374 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: API specification
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: agents
+    description: KeyP multi-agent pipeline
+  - name: push
+    description: Push notification device + interest registration
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /agents/parse-interest:
+    post:
+      operationId: parseInterest
+      tags: [agents]
+      summary: Planner Agent — parse natural-language interest into structured spec
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ParseInterestRequest"
+      responses:
+        "200":
+          description: Parsed interest spec
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ParsedInterestResult"
+  /push/register-device:
+    post:
+      operationId: registerDevice
+      tags: [push]
+      summary: Register or update an Expo push token for a device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterDeviceRequest"
+      responses:
+        "200":
+          description: Registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterDeviceResult"
+  /push/track-interest:
+    post:
+      operationId: trackInterest
+      tags: [push]
+      summary: Track an interest server-side so the background poller fires push notifications
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TrackInterestRequest"
+      responses:
+        "200":
+          description: Tracked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TrackInterestResult"
+  /push/track-interest/{interestId}:
+    delete:
+      operationId: untrackInterest
+      tags: [push]
+      summary: Stop tracking an interest server-side
+      parameters:
+        - name: interestId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        "200":
+          description: Untracked
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [ok]
+                properties:
+                  ok: { type: boolean }
+  /push/test:
+    post:
+      operationId: pushTest
+      tags: [push]
+      summary: Send a test push notification to a registered device
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PushTestRequest"
+      responses:
+        "200":
+          description: Sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PushTestResult"
+  /agents/generate-alerts:
+    post:
+      operationId: generateAlerts
+      tags: [agents]
+      summary: Multi-agent pipeline — Source Router + Collector + Verifier produce alerts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GenerateAlertsRequest"
+      responses:
+        "200":
+          description: Generated alerts with agent traces
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedAlertsResult"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    ParseInterestRequest:
+      type: object
+      required: [rawText]
+      properties:
+        rawText:
+          type: string
+          minLength: 2
+          maxLength: 1000
+        userId:
+          type: string
+    InterestSpecData:
+      type: object
+      required:
+        - intentType
+        - topic
+        - entities
+        - urgency
+        - desiredOutcome
+        - trustNeed
+        - privacyLevel
+        - suggestedSources
+      properties:
+        intentType:
+          type: string
+          enum: [monitor, alert, opportunity, match, creator_watch, travel, local_signal]
+        topic:
+          type: string
+        entities:
+          type: array
+          items: { type: string }
+        locationScope:
+          type: string
+          nullable: true
+        urgency:
+          type: string
+          enum: [high, medium, low]
+        desiredOutcome:
+          type: string
+        trustNeed:
+          type: string
+          enum: [high, medium, low]
+        matchMode:
+          type: string
+          nullable: true
+          enum: [companion, friend, collaborate, meal_mate, date]
+        privacyLevel:
+          type: string
+          enum: [public, friends, private]
+        negativeConstraints:
+          type: array
+          items: { type: string }
+        suggestedSources:
+          type: array
+          items:
+            type: string
+            enum: [youtube, twitter, reddit, rss, match]
+        targetPersona:
+          type: string
+          nullable: true
+          description: "Inferred persona of the subject the user is searching FOR (not the asker). Free-form Korean."
+        searchStrategy:
+          type: array
+          description: "Detective-style ordered investigation plan. Each entry names a specific channel/community/platform/handle/hashtag and a concrete query angle, used directly by the Collector to drive web search."
+          items:
+            type: object
+            required: [channel, query, rationale]
+            properties:
+              channel:
+                type: string
+                description: "Specific platform/community/handle/hashtag (e.g. r/AskNYC, Hinge NYC, @nyukorean)."
+              query:
+                type: string
+                description: "Concrete search query or phrase to run on that channel."
+              rationale:
+                type: string
+                description: "One Korean sentence explaining why this channel is high-signal for the goal."
+    AgentStep:
+      type: object
+      required: [agent, status, message]
+      properties:
+        agent:
+          type: string
+        status:
+          type: string
+          enum: [success, partial, failed]
+        message:
+          type: string
+        durationMs:
+          type: number
+    ParsedInterestResult:
+      type: object
+      required: [spec, steps]
+      properties:
+        spec:
+          $ref: "#/components/schemas/InterestSpecData"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentStep"
+    GenerateAlertsRequest:
+      type: object
+      required: [spec]
+      properties:
+        spec:
+          $ref: "#/components/schemas/InterestSpecData"
+        count:
+          type: integer
+          minimum: 1
+          maximum: 5
+          default: 3
+        existingAlertSummaries:
+          type: array
+          description: "Titles+summaries of alerts the user already received for this interest. Used by the Verifier to suppress semantic duplicates from different sources."
+          items:
+            type: object
+            required: [title, summary]
+            properties:
+              title: { type: string }
+              summary: { type: string }
+    AlertData:
+      type: object
+      required:
+        - title
+        - summary
+        - reason
+        - confidence
+        - freshness
+        - source
+        - tags
+      properties:
+        title:
+          type: string
+        summary:
+          type: string
+        reason:
+          type: string
+        confidence:
+          type: integer
+          minimum: 0
+          maximum: 100
+        freshness:
+          type: string
+          enum: [live, hot, recent, older]
+        source:
+          type: object
+          required: [type, name]
+          properties:
+            type:
+              type: string
+              enum: [youtube, twitter, reddit, rss, match]
+            name:
+              type: string
+            url:
+              type: string
+              description: Direct link to the original source. Opens externally when tapped.
+        tags:
+          type: array
+          items: { type: string }
+        minutesAgo:
+          type: integer
+          minimum: 0
+        eventMinutesAgo:
+          type: integer
+          minimum: 0
+          description: "Minutes since the event/news ACTUALLY occurred (per content body), distinct from publish time. Used to rank items by content-recency, not republish-recency."
+        originalLanguage:
+          type: string
+          description: BCP-47-ish short language code of the source (ko, en, ja, zh, es, fr, de, other).
+        translated:
+          type: boolean
+          description: Whether the title/summary were translated from originalLanguage into the requested userLanguage.
+    GeneratedAlertsResult:
+      type: object
+      required: [alerts, steps]
+      properties:
+        alerts:
+          type: array
+          items:
+            $ref: "#/components/schemas/AlertData"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentStep"
+    RegisterDeviceRequest:
+      type: object
+      required: [deviceId, expoPushToken, platform]
+      properties:
+        deviceId: { type: string, minLength: 4, maxLength: 128 }
+        expoPushToken: { type: string, minLength: 4, maxLength: 256 }
+        platform:
+          type: string
+          enum: [ios, android, web]
+    RegisterDeviceResult:
+      type: object
+      required: [ok]
+      properties:
+        ok: { type: boolean }
+    TrackInterestRequest:
+      type: object
+      required: [interestId, deviceId, spec]
+      properties:
+        interestId: { type: string, minLength: 1, maxLength: 128 }
+        deviceId: { type: string, minLength: 4, maxLength: 128 }
+        spec:
+          $ref: "#/components/schemas/InterestSpecData"
+        rawText:
+          type: string
+          maxLength: 1000
+    TrackInterestResult:
+      type: object
+      required: [ok, interestId]
+      properties:
+        ok: { type: boolean }
+        interestId: { type: string }
+    PushTestRequest:
+      type: object
+      required: [deviceId]
+      properties:
+        deviceId: { type: string, minLength: 4, maxLength: 128 }
+    PushTestResult:
+      type: object
+      required: [ok, ticket]
+      properties:
+        ok: { type: boolean }
+        ticket: { type: string }

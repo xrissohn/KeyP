@@ -1,0 +1,21 @@
+{
+  "name": "workspace",
+  "version": "0.0.0",
+  "license": "MIT",
+  "packageManager": "pnpm@10.15.0",
+  "engines": {
+    "node": ">=22.12.0 <25",
+    "pnpm": "10.15.0"
+  },
+  "scripts": {
+    "preinstall": "node -e \"const fs=require('fs'); for (const file of ['package-lock.json','yarn.lock']) fs.rmSync(file,{force:true}); if (!(process.env.npm_config_user_agent || '').startsWith('pnpm/')) { console.error('Use pnpm instead'); process.exit(1); }\"",
+    "build": "corepack pnpm run typecheck && corepack pnpm -r --if-present run build",
+    "typecheck:libs": "tsc --build",
+    "typecheck": "corepack pnpm run typecheck:libs && corepack pnpm -r --filter \"./artifacts/**\" --filter \"./scripts\" --if-present run typecheck"
+  },
+  "private": true,
+  "devDependencies": {
+    "typescript": "~5.9.2",
+    "prettier": "^3.8.1"
+  }
+}

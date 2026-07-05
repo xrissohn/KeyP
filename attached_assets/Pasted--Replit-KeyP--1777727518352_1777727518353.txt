@@ -1,0 +1,246 @@
+너는 프로덕션급 모바일 앱을 만드는 리드 제품 설계자이자 시니어 풀스택 엔지니어다.
+지금부터 Replit에서 바로 실행 가능한 “KeyP”라는 네이티브 모바일 앱을 만들어라.
+
+앱 핵심 정의:
+- 앱 이름: KeyP
+- 앱 유형: 실시간 사용자 관심사 알림 + 내부 상호관심 매칭 모바일 앱
+- 핵심 차별점: 단순 검색 앱이 아니라 “미래에 발생할 수 있는 관심사”를 먼저 감지하고 알려주는 앱
+- 필수 철학: 모든 키워드를 모든 사이트에서 계속 검색하지 말고, 사용자의 자연어 관심사를 먼저 이해한 뒤 가장 찾을 확률이 높은 소스부터 검색하는 확률 기반 멀티 에이전트 구조를 구현할 것
+- 핵심 금지사항: 무식한 전수 polling, 비공식 스크래핑, 사설 API, 데이팅앱 크롤링, 비동의 개인 추적, 민감정보 추정 기반 사람 찾기
+- 기본 언어: 한국어 UI 우선, 다국어 확장 가능한 i18n 구조로 설계
+
+기술 스택:
+- Replit mobile app project
+- Expo + React Native + TypeScript
+- Expo Router
+- 서버는 TypeScript 기반 API 서버
+- 데이터베이스는 PostgreSQL
+- 파일 저장은 object/app storage
+- 푸시는 Expo Notifications
+- 실시간 업데이트는 WebSocket 또는 SSE
+- 인증은 소비자용 확장성을 고려한 독립 인증 구조를 기본값으로 설계
+- 환경변수와 비밀값은 Secrets 사용
+- 외부 API 키가 없어도 앱이 끝까지 실행되도록 mock/live provider abstraction을 반드시 만들 것
+
+제품 목표:
+1. 사용자가 자연어로 관심사를 등록한다.
+2. 시스템이 관심사를 구조화된 InterestSpec으로 변환한다.
+3. 여러 사용자의 유사 관심사를 클러스터링해서 하나의 공통 수집 작업으로 묶는다.
+4. 소스 라우터가 어떤 플랫폼/채널/인플루언서/커뮤니티를 먼저 볼지 확률 기반으로 선택한다.
+5. 수집 에이전트가 공식 API 또는 허용된 공개 소스에서 정보를 가져온다.
+6. 검증 에이전트가 중복 제거, 출처 검증, 신뢰도 산정, 노이즈 필터링을 수행한다.
+7. 전달 에이전트가 짧은 요약, 근거, 신뢰도, 원문 링크를 포함한 알림 카드를 만든다.
+8. 사용자는 좋다/별로다/이런 것 더 보기/이 소스 숨기기/관심사 수정 피드백을 준다.
+9. 학습 에이전트는 피드백을 반영해 다음 검색 우선순위를 개선한다.
+10. 내부 상호관심 매칭 엔진은 KeyP 내부 사용자들의 관심사를 서로 이해해서, 양방향 조건이 맞는 경우 연결한다.
+
+반드시 구현할 멀티 에이전트 구조:
+- PlannerAgent:
+  - 사용자의 자연어 관심사를 파싱해 InterestSpec JSON 생성
+  - intentType, topic, entities, location, timeWindow, urgency, desiredOutcome, trustNeed, matchMode, privacyLevel, negativeConstraints 추출
+- DemandClusterAgent:
+  - 여러 사용자의 InterestSpec을 유사도 기반으로 묶어서 shared retrieval job 생성
+  - 결과는 공통 수집 후 사용자별로 개인화 rerank
+- SourceRouterAgent:
+  - 관심사 문맥을 보고 어떤 source type을 먼저 볼지 prior score 계산
+  - score = predictedReward + explorationBonus + freshness + sourceTrust + authorAffinity + reciprocityWeight - apiCost - duplicationPenalty
+  - brute-force global polling 금지
+- ScoutAgents:
+  - source별 adapter로 분리
+  - 1차 구현 우선순위: YouTube, X, Reddit, RSS/뉴스
+  - 2차 구현: Instagram professional/connected, TikTok creator-authorized/display style provider
+  - provider는 live/mock 공통 인터페이스로 구현
+- VerifierAgent:
+  - canonical event 생성
+  - near-duplicate 병합
+  - low-trust source는 2개 이상 독립 증거가 있을 때 confidence 상승
+  - high-trust source는 단독 통과 가능
+- MatchAgent:
+  - 내부 사용자 관심사 기반 reciprocal matching
+  - 사람 매칭은 반드시 opt-in
+  - 정확한 위치/연락처는 mutual consent 전까지 숨김
+  - age gate, report, block, moderation queue 필수
+- DeliveryAgent:
+  - 한 줄 요약, 왜 중요한지, 얼마나 빠른 신호인지, 신뢰도, 원문 링크, 피드백 버튼 포함
+  - push notification + in-app feed 동시 지원
+- LearningAgent:
+  - explicit feedback: 좋다/별로다/숨기기/더보기/관심없음
+  - implicit feedback: open rate, dwell time, source click, save, follow-up action
+  - 사용자별 가중치와 글로벌 source prior를 함께 업데이트
+
+앱 핵심 화면:
+- 온보딩
+- 회원가입/로그인
+- 관심사 등록 화면
+- 관심사 수정 화면
+- 실시간 알림 피드
+- 관심사별 상세 피드
+- 상호관심 매칭 피드
+- 매칭 상세/수락/거절 화면
+- 저장한 알림
+- 소스/인플루언서 설정
+- 피드백 설정
+- 신고/차단 리스트
+- 관리자 모더레이션 대시보드
+
+데이터 모델:
+- users
+- profiles
+- interests
+- interest_specs
+- grouped_interest_jobs
+- source_priors
+- source_authors
+- raw_events
+- canonical_events
+- evidence_items
+- alerts
+- alert_deliveries
+- user_feedback
+- source_feedback_stats
+- match_profiles
+- match_preferences
+- reciprocal_matches
+- reports
+- blocks
+- notification_tokens
+- jobs
+- job_runs
+- feature_flags
+- api_credentials_status
+
+InterestSpec 예시 스키마:
+{
+  id,
+  userId,
+  rawText,
+  intentType,
+  topic,
+  entities: [],
+  locationScope,
+  timeWindowStart,
+  timeWindowEnd,
+  urgency,
+  desiredOutcome,
+  trustNeed,
+  matchMode,
+  privacyLevel,
+  negativeConstraints: [],
+  suggestedSources: [],
+  createdAt,
+  updatedAt
+}
+
+핵심 알고리즘 요구사항:
+- 관심사 등록 직후 즉시 전체 인터넷 검색하지 말 것
+- 먼저 PlannerAgent가 해석하고 SourceRouterAgent가 우선순위를 정한 뒤, top-N source route만 검색
+- search budget을 일/시간/관심사별로 관리
+- source adapter별 request budget 추적
+- 같은 관심사를 가진 사용자가 많아질수록 공통 수집을 늘리고 개인화는 rerank에서 해결
+- 인플루언서/매체 랭킹은 follower 수보다 “이 문맥에서 과거 피드백이 좋았는지”를 우선 반영
+- freshness decay 포함
+- duplication collapse 포함
+- confidence score 포함
+- source trust score 포함
+- 내부 상호매칭은 unilateral 추천이 아니라 reciprocal score 기반
+
+외부 소스 정책:
+- YouTube: channel watch + topic search + creator priority 구조
+- X: recent search, author watch, conversation tracking 중심
+- Reddit: subreddit watch, new/rising, selected live/community signals 중심
+- Instagram/TikTok: provider stub부터 만들고, 공식/허용 범위 내 연결형 구조로 설계
+- 모든 외부 결과 카드에는 원문 소스 링크 필수
+- 비공식 scraping 코드 절대 만들지 말 것
+- API 키가 없으면 mock provider로 seeded demo data를 보여주고, 나중에 live provider로 교체 가능하게 만들 것
+
+내부 상호관심 매칭 요구사항:
+- 사용자가 관심사에 “사람 매칭” 모드를 켤 수 있게 만들 것
+- matchMode 예시: 친구찾기, 현지동행, 식사메이트, 협업, 행사동행, 데이트
+- 데이트류는 양쪽 모두 동일 모드 opt-in일 때만 노출
+- 매칭 전에는 최소 정보만 공유
+- mutual accept 후에만 다음 단계로 이동
+- report / block / hide / safety tips / moderation log 필수
+- 사용자 검색 노출은 privacy controls로 세밀하게 제어 가능해야 함
+
+알림 카드 UX:
+- 제목
+- 2~3줄 요약
+- 왜 이게 이 사용자에게 떴는지
+- confidence badge
+- freshness 표시
+- source icon + source link
+- 좋아요 / 별로예요 / 이 소스 숨기기 / 비슷한 것 더 보기 / 저장 버튼
+- 관련 관심사 태그
+- 내부 매칭 결과일 경우 “왜 서로 연결되었는지” 설명
+
+모더레이션 및 안전:
+- 신고 사유 선택
+- 차단
+- 뮤트
+- age gate
+- 운영 정책/이용약관/개인정보 처리방침 페이지
+- 관리자용 신고 처리 화면
+- 콘텐츠 노출 전 최소 안전 필터
+- 랜덤 채팅이나 익명 남발 구조로 가지 말 것
+- 사용자 간 연결은 opt-in + mutual + reportable 구조만 허용
+
+성능 및 비용 최적화:
+- provider별 캐시
+- canonical event dedupe
+- grouped retrieval jobs
+- lazy hydration
+- 백그라운드 재수집은 우선순위별 cadence 차등 적용
+- hot / warm / cold source tier 분리
+- expensive search API는 cold start와 보강용으로만 사용
+- 푸시 발송은 digest와 instant를 분리
+- quiet hours 지원
+
+개발 우선순위:
+1. 실행 가능한 전체 앱 뼈대
+2. 인증/온보딩/관심사 등록
+3. InterestSpec 생성 파이프라인
+4. grouped retrieval jobs + mock providers
+5. 실시간 알림 피드
+6. 피드백 루프
+7. 내부 reciprocal matching
+8. 신고/차단/모더레이션
+9. live adapters for YouTube/X/Reddit
+10. Instagram/TikTok provider stubs + feature flags
+
+반드시 포함할 데모 기능:
+- 샘플 사용자 여러 명
+- 샘플 관심사 여러 개
+- mock external events
+- mock internal reciprocal matches
+- 관심사 등록 → 결과 생성 → 알림 전송 → 피드백 반영까지 end-to-end demo 가능
+- 앱을 처음 실행하는 사람도 API 키 없이 핵심 흐름을 체험할 수 있어야 함
+
+코드 품질 요구사항:
+- 구조화된 폴더 설계
+- 타입 안정성
+- 에러 처리
+- 로그
+- 테스트 가능한 함수 분리
+- reusable components
+- provider interface abstraction
+- README에 실행 방법, 시크릿 설정 방법, mock/live 전환 방법, 향후 확장 포인트 설명
+
+출력 방식:
+- 설명만 하지 말고 실제 앱 코드를 생성하고 실행 가능 상태까지 만들어라
+- 필요한 파일과 폴더를 모두 생성
+- 데이터베이스 스키마와 시드 데이터 포함
+- mock data 포함
+- 첫 실행 시 홈 화면까지 바로 보이게 구성
+- 막히는 외부 자격증명 부분은 TODO가 아니라 작동하는 mock fallback으로 처리
+- UI는 세련되고 현대적인 모바일 앱 스타일
+- 브랜드명은 반드시 “KeyP”
+- 앱 첫 화면 카피는 “검색이 아니라, 당신의 관심사를 먼저 알아채는 앱”
+- 구현 완료 후에는 다음을 보여줘:
+  1) 앱 구조 요약
+  2) 주요 폴더
+  3) 실행 방법
+  4) mock/live provider 전환 방법
+  5) 다음 개선 포인트
+
+이제 바로 제작을 시작해라.
+질문을 최소화하고, 합리적인 기본값을 스스로 선택해서, 실행 가능한 첫 버전을 끝까지 완성해라.
