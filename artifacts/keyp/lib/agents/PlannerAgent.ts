@@ -124,7 +124,11 @@ const VALID_MATCH_MODES = new Set<MatchMode>([
   'friend', 'companion', 'collaborate', 'meal_mate', 'date',
 ]);
 const VALID_PRIVACY = new Set<'public' | 'friends' | 'private'>(['public', 'friends', 'private']);
-const VALID_SOURCES = new Set<SourceType>(['youtube', 'twitter', 'reddit', 'rss', 'match']);
+const VALID_SOURCES = new Set<SourceType>([
+  'youtube', 'twitter', 'reddit', 'facebook', 'instagram', 'tiktok',
+  'threads', 'bluesky', 'mastodon', 'naver_blog', 'hackernews',
+  'news', 'rss', 'match',
+]);
 
 function safeEnum<T>(value: unknown, valid: Set<T>, fallback: T): T {
   return valid.has(value as T) ? (value as T) : fallback;

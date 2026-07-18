@@ -52,7 +52,22 @@ export const ParseInterestResponse = zod.object({
     privacyLevel: zod.enum(["public", "friends", "private"]),
     negativeConstraints: zod.array(zod.string()).optional(),
     suggestedSources: zod.array(
-      zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+      zod.enum([
+        "youtube",
+        "twitter",
+        "reddit",
+        "facebook",
+        "instagram",
+        "tiktok",
+        "threads",
+        "bluesky",
+        "mastodon",
+        "naver_blog",
+        "hackernews",
+        "news",
+        "rss",
+        "match",
+      ]),
     ),
     targetPersona: zod
       .string()
@@ -158,7 +173,22 @@ export const TrackInterestBody = zod.object({
     privacyLevel: zod.enum(["public", "friends", "private"]),
     negativeConstraints: zod.array(zod.string()).optional(),
     suggestedSources: zod.array(
-      zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+      zod.enum([
+        "youtube",
+        "twitter",
+        "reddit",
+        "facebook",
+        "instagram",
+        "tiktok",
+        "threads",
+        "bluesky",
+        "mastodon",
+        "naver_blog",
+        "hackernews",
+        "news",
+        "rss",
+        "match",
+      ]),
     ),
     targetPersona: zod
       .string()
@@ -257,7 +287,22 @@ export const GenerateAlertsBody = zod.object({
     privacyLevel: zod.enum(["public", "friends", "private"]),
     negativeConstraints: zod.array(zod.string()).optional(),
     suggestedSources: zod.array(
-      zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+      zod.enum([
+        "youtube",
+        "twitter",
+        "reddit",
+        "facebook",
+        "instagram",
+        "tiktok",
+        "threads",
+        "bluesky",
+        "mastodon",
+        "naver_blog",
+        "hackernews",
+        "news",
+        "rss",
+        "match",
+      ]),
     ),
     targetPersona: zod
       .string()
@@ -315,6 +360,20 @@ export const generateAlertsResponseAlertsItemMinutesAgoMin = 0;
 
 export const generateAlertsResponseAlertsItemEventMinutesAgoMin = 0;
 
+export const generateAlertsResponseMetricsLaneCountMin = 0;
+
+export const generateAlertsResponseMetricsCandidateCountMin = 0;
+
+export const generateAlertsResponseMetricsReachableCountMin = 0;
+
+export const generateAlertsResponseMetricsSelectedCountMin = 0;
+
+export const generateAlertsResponseMetricsWallClockMsMin = 0;
+
+export const generateAlertsResponseMetricsSequentialEstimateMsMin = 0;
+
+export const generateAlertsResponseMetricsParallelSpeedupMin = 0;
+
 export const GenerateAlertsResponse = zod.object({
   alerts: zod.array(
     zod.object({
@@ -327,7 +386,22 @@ export const GenerateAlertsResponse = zod.object({
         .max(generateAlertsResponseAlertsItemConfidenceMax),
       freshness: zod.enum(["live", "hot", "recent", "older"]),
       source: zod.object({
-        type: zod.enum(["youtube", "twitter", "reddit", "rss", "match"]),
+        type: zod.enum([
+          "youtube",
+          "twitter",
+          "reddit",
+          "facebook",
+          "instagram",
+          "tiktok",
+          "threads",
+          "bluesky",
+          "mastodon",
+          "naver_blog",
+          "hackernews",
+          "news",
+          "rss",
+          "match",
+        ]),
         name: zod.string(),
         url: zod
           .string()
@@ -370,4 +444,33 @@ export const GenerateAlertsResponse = zod.object({
       durationMs: zod.number().optional(),
     }),
   ),
+  metrics: zod
+    .object({
+      runId: zod.string(),
+      model: zod.string(),
+      laneCount: zod.number().min(generateAlertsResponseMetricsLaneCountMin),
+      candidateCount: zod
+        .number()
+        .min(generateAlertsResponseMetricsCandidateCountMin),
+      reachableCount: zod
+        .number()
+        .min(generateAlertsResponseMetricsReachableCountMin),
+      selectedCount: zod
+        .number()
+        .min(generateAlertsResponseMetricsSelectedCountMin),
+      wallClockMs: zod
+        .number()
+        .min(generateAlertsResponseMetricsWallClockMsMin),
+      sequentialEstimateMs: zod
+        .number()
+        .min(generateAlertsResponseMetricsSequentialEstimateMsMin),
+      parallelSpeedup: zod
+        .number()
+        .min(generateAlertsResponseMetricsParallelSpeedupMin),
+      sourceCoverage: zod.array(zod.string()),
+    })
+    .optional()
+    .describe(
+      "Optional observability summary emitted by the GPT-5.6 parallel signal swarm.",
+    ),
 });

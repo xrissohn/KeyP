@@ -46,10 +46,11 @@ import { isInternalLoopback } from "../lib/internalAuth";
 import { pickVariant } from "../services/experiments";
 import { db, sourcePreferencesTable } from "@workspace/db";
 import { eq } from "drizzle-orm";
+import { runKeyPSwarm } from "../services/swarm/runtime";
 
 const router: IRouter = Router();
 
-const PLANNER_MODEL = "gpt-5.4";
+const PLANNER_MODEL = process.env["KEYP_SWARM_MODEL"] || "gpt-5.6";
 const COLLECTOR_MODEL = "perplexity/sonar-pro";
 const VERIFIER_MODEL = "claude-sonnet-4-6";
 const PLANNER_MAX_TOKENS = 4096;
@@ -406,7 +407,7 @@ Respond ONLY with JSON matching this exact schema (no prose, no markdown):
   "matchMode": "companion"|"friend"|"collaborate"|"meal_mate"|"date"|null,
   "privacyLevel": "public"|"friends"|"private",
   "negativeConstraints": ["<things to avoid in Korean>"],
-  "suggestedSources": ["youtube"|"twitter"|"reddit"|"rss"|"match", ...],
+  "suggestedSources": ["youtube"|"twitter"|"reddit"|"facebook"|"instagram"|"tiktok"|"threads"|"bluesky"|"mastodon"|"naver_blog"|"hackernews"|"news"|"rss"|"match", ...],
   "targetPersona": "<Korean: who/what the user is searching FOR — demographic, location, behavior, intent>",
   "searchStrategy": [
     { "channel": "<specific platform/community/handle/hashtag/site>", "query": "<concrete search phrase>", "rationale": "<one Korean sentence on why this is high-signal>" }
@@ -475,7 +476,7 @@ Detective rules — apply ALL:
     steps.push({
       agent: "Planner",
       status: "success",
-      message: `의도 "${spec.intentType}" 추론 · 페르소나 식별 · 조사 채널 ${searchStrategy.length}개 우선순위화 (GPT-5.4)`,
+      message: `의도 "${spec.intentType}" 추론 · 페르소나 식별 · 조사 채널 ${searchStrategy.length}개 우선순위화 (GPT-5.6)`,
       durationMs: Date.now() - plannerStart,
     });
   } catch (err) {
@@ -764,7 +765,78 @@ router.post("/agents/generate-alerts", async (req, res) => {
     : Number.POSITIVE_INFINITY;
   const hasFreshnessFloor = Number.isFinite(maxAllowedEventMinutesAgo);
 
-  const steps: AgentStep[] = [];
+  // Build Week pipeline: GPT-5.6 plans and judges while six bounded web
+  // scouts plus public-source adapters search concurrently. Replit's existing
+  // AI integration supplies the OpenAI-compatible gateway credentials; no
+  // standalone OPENAI_API_KEY is required. `off` provides an instant rollback,
+  // and `strict` disables the legacy fallback for debugging/evaluation.
+  const swarmMode = process.env["KEYP_SWARM_MODE"] ?? "primary";
+  let swarmFallbackStep: AgentStep | undefined;
+  if (swarmMode !== "off") {
+    try {
+      const swarm = await runKeyPSwarm({
+        spec,
+        count: requested,
+        knownItems,
+        userLanguage,
+        maxAllowedEventMinutesAgo,
+        probeUrl,
+        logger: req.log,
+      });
+      let swarmAlerts = swarm.alerts;
+      if (interestId && swarmAlerts.length > 0) {
+        try {
+          const preferences = await db
+            .select()
+            .from(sourcePreferencesTable)
+            .where(eq(sourcePreferencesTable.interestId, interestId));
+          const blocked = new Set(preferences.filter((pref) => pref.mode === "block").map((pref) => pref.host));
+          const boosted = new Set(preferences.filter((pref) => pref.mode === "boost").map((pref) => pref.host));
+          swarmAlerts = swarmAlerts
+            .filter((alert) => {
+              const host = hostFromUrl(alert.source.url);
+              return !(host && blocked.has(host));
+            })
+            .sort((left, right) => {
+              const leftBoosted = boosted.has(hostFromUrl(left.source.url) ?? "") ? 1 : 0;
+              const rightBoosted = boosted.has(hostFromUrl(right.source.url) ?? "") ? 1 : 0;
+              return rightBoosted - leftBoosted || right.confidence - left.confidence;
+            });
+        } catch (prefError) {
+          req.log.warn({ prefError, interestId }, "[swarm] source preferences unavailable (non-fatal)");
+        }
+      }
+      swarm.metrics.selectedCount = swarmAlerts.length;
+      swarm.metrics.sourceCoverage = [...new Set(swarmAlerts.map((alert) => alert.source.type))];
+      const validation = GenerateAlertsResponse.safeParse({
+        alerts: swarmAlerts,
+        steps: swarm.steps,
+        metrics: swarm.metrics,
+      });
+      if (!validation.success) {
+        throw new Error(`swarm_schema_validation_failed: ${validation.error.message}`);
+      }
+      res.json(validation.data);
+      return;
+    } catch (err) {
+      req.log.error({ err, swarmMode }, "[swarm] GPT-5.6 pipeline failed");
+      if (swarmMode === "strict") {
+        res.status(502).json({
+          error: "swarm_failed",
+          message: "GPT-5.6 signal swarm failed in strict mode.",
+        });
+        return;
+      }
+      swarmFallbackStep = {
+        agent: "GPT-5.6 Swarm",
+        status: "partial",
+        message: "병렬 Swarm 호출 실패 — 기존 검증 파이프라인으로 자동 전환",
+        durationMs: 0,
+      };
+    }
+  }
+
+  const steps: AgentStep[] = swarmFallbackStep ? [swarmFallbackStep] : [];
 
   // ============================================================
   // Collector — Perplexity Sonar (real web search via OpenRouter)

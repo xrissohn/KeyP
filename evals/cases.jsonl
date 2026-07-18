@@ -1,0 +1,8 @@
+{"id":"source-x","kind":"source_type","url":"https://x.com/openai/status/123","expected":"twitter"}
+{"id":"source-youtube","kind":"source_type","url":"https://youtu.be/abc123","expected":"youtube"}
+{"id":"source-instagram","kind":"source_type","url":"https://www.instagram.com/p/abc123/","expected":"instagram"}
+{"id":"source-naver","kind":"source_type","url":"https://blog.naver.com/keyp/223000000","expected":"naver_blog"}
+{"id":"source-hn","kind":"source_type","url":"https://news.ycombinator.com/item?id=123","expected":"hackernews"}
+{"id":"duplicate-en","kind":"known_duplicate","title":"OpenAI launches a new agent platform","summary":"OpenAI announced a new agent platform for developers today.","knownTitle":"OpenAI launches a new agent platform","knownSummary":"OpenAI announced a new agent platform for developers today.","expected":true}
+{"id":"distinct-en","kind":"known_duplicate","title":"OpenAI launches a new agent platform","summary":"OpenAI announced a new agent platform for developers today.","knownTitle":"Seoul weather update","knownSummary":"Rain is expected this evening.","expected":false}
+{"id":"duplicate-ko","kind":"known_duplicate","title":"오픈AI, 새로운 에이전트 플랫폼 공개","summary":"오픈AI가 오늘 개발자를 위한 새로운 에이전트 플랫폼을 발표했다.","knownTitle":"오픈AI 새로운 에이전트 플랫폼 공개","knownSummary":"오픈AI는 개발자용 에이전트 플랫폼을 오늘 발표했다.","expected":true}

@@ -77,6 +77,15 @@ export const InterestSpecDataSuggestedSourcesItem = {
   youtube: "youtube",
   twitter: "twitter",
   reddit: "reddit",
+  facebook: "facebook",
+  instagram: "instagram",
+  tiktok: "tiktok",
+  threads: "threads",
+  bluesky: "bluesky",
+  mastodon: "mastodon",
+  naver_blog: "naver_blog",
+  hackernews: "hackernews",
+  news: "news",
   rss: "rss",
   match: "match",
 } as const;
@@ -162,6 +171,15 @@ export const AlertDataSourceType = {
   youtube: "youtube",
   twitter: "twitter",
   reddit: "reddit",
+  facebook: "facebook",
+  instagram: "instagram",
+  tiktok: "tiktok",
+  threads: "threads",
+  bluesky: "bluesky",
+  mastodon: "mastodon",
+  naver_blog: "naver_blog",
+  hackernews: "hackernews",
+  news: "news",
   rss: "rss",
   match: "match",
 } as const;
@@ -198,9 +216,33 @@ export interface AlertData {
   translated?: boolean;
 }
 
+/**
+ * Optional observability summary emitted by the GPT-5.6 parallel signal swarm.
+ */
+export interface SwarmMetrics {
+  runId: string;
+  model: string;
+  /** @minimum 0 */
+  laneCount: number;
+  /** @minimum 0 */
+  candidateCount: number;
+  /** @minimum 0 */
+  reachableCount: number;
+  /** @minimum 0 */
+  selectedCount: number;
+  /** @minimum 0 */
+  wallClockMs: number;
+  /** @minimum 0 */
+  sequentialEstimateMs: number;
+  /** @minimum 0 */
+  parallelSpeedup: number;
+  sourceCoverage: string[];
+}
+
 export interface GeneratedAlertsResult {
   alerts: AlertData[];
   steps: AgentStep[];
+  metrics?: SwarmMetrics;
 }
 
 export type RegisterDeviceRequestPlatform =

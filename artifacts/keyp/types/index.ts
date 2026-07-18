@@ -18,6 +18,15 @@ export type SourceType =
   | 'youtube'
   | 'twitter'
   | 'reddit'
+  | 'facebook'
+  | 'instagram'
+  | 'tiktok'
+  | 'threads'
+  | 'bluesky'
+  | 'mastodon'
+  | 'naver_blog'
+  | 'hackernews'
+  | 'news'
   | 'rss'
   | 'match';
 

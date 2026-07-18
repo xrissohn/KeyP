@@ -7,8 +7,10 @@
  */
 import type { AgentStep } from "./agentStep";
 import type { AlertData } from "./alertData";
+import type { SwarmMetrics } from "./swarmMetrics";
 
 export interface GeneratedAlertsResult {
   alerts: AlertData[];
   steps: AgentStep[];
+  metrics?: SwarmMetrics;
 }

@@ -31,6 +31,7 @@ export * from "./pushTestResult";
 export * from "./registerDeviceRequest";
 export * from "./registerDeviceRequestPlatform";
 export * from "./registerDeviceResult";
+export * from "./swarmMetrics";
 export * from "./trackInterestRequest";
 export * from "./trackInterestResult";
 export * from "./untrackInterest200";

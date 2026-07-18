@@ -171,7 +171,16 @@ components:
       properties:
         intentType:
           type: string
-          enum: [monitor, alert, opportunity, match, creator_watch, travel, local_signal]
+          enum:
+            [
+              monitor,
+              alert,
+              opportunity,
+              match,
+              creator_watch,
+              travel,
+              local_signal,
+            ]
         topic:
           type: string
         entities:
@@ -202,7 +211,23 @@ components:
           type: array
           items:
             type: string
-            enum: [youtube, twitter, reddit, rss, match]
+            enum:
+              [
+                youtube,
+                twitter,
+                reddit,
+                facebook,
+                instagram,
+                tiktok,
+                threads,
+                bluesky,
+                mastodon,
+                naver_blog,
+                hackernews,
+                news,
+                rss,
+                match,
+              ]
         targetPersona:
           type: string
           nullable: true
@@ -296,7 +321,23 @@ components:
           properties:
             type:
               type: string
-              enum: [youtube, twitter, reddit, rss, match]
+              enum:
+                [
+                  youtube,
+                  twitter,
+                  reddit,
+                  facebook,
+                  instagram,
+                  tiktok,
+                  threads,
+                  bluesky,
+                  mastodon,
+                  naver_blog,
+                  hackernews,
+                  news,
+                  rss,
+                  match,
+                ]
             name:
               type: string
             url:
@@ -330,6 +371,37 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AgentStep"
+        metrics:
+          $ref: "#/components/schemas/SwarmMetrics"
+    SwarmMetrics:
+      type: object
+      description: Optional observability summary emitted by the GPT-5.6 parallel signal swarm.
+      required:
+        [
+          runId,
+          model,
+          laneCount,
+          candidateCount,
+          reachableCount,
+          selectedCount,
+          wallClockMs,
+          sequentialEstimateMs,
+          parallelSpeedup,
+          sourceCoverage,
+        ]
+      properties:
+        runId: { type: string }
+        model: { type: string }
+        laneCount: { type: integer, minimum: 0 }
+        candidateCount: { type: integer, minimum: 0 }
+        reachableCount: { type: integer, minimum: 0 }
+        selectedCount: { type: integer, minimum: 0 }
+        wallClockMs: { type: number, minimum: 0 }
+        sequentialEstimateMs: { type: number, minimum: 0 }
+        parallelSpeedup: { type: number, minimum: 0 }
+        sourceCoverage:
+          type: array
+          items: { type: string }
     RegisterDeviceRequest:
       type: object
       required: [deviceId, expoPushToken, platform]

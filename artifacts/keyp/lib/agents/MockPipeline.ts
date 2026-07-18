@@ -14,6 +14,15 @@ const SOURCE_NAMES: Record<SourceType, string> = {
   youtube: 'YouTube',
   twitter: 'Twitter/X',
   reddit: 'Reddit',
+  facebook: 'Facebook',
+  instagram: 'Instagram',
+  tiktok: 'TikTok',
+  threads: 'Threads',
+  bluesky: 'Bluesky',
+  mastodon: 'Mastodon',
+  naver_blog: '네이버 블로그',
+  hackernews: 'Hacker News',
+  news: '뉴스',
   rss: '뉴스',
   match: 'KeyP 매칭',
 };
@@ -117,7 +126,11 @@ function fallbackAlerts(spec: InterestSpec, count: number): Alert[] {
 }
 
 const VALID_FRESHNESS = new Set<FreshnessLevel>(['live', 'hot', 'recent', 'older']);
-const VALID_SOURCES_ALERT = new Set<SourceType>(['youtube', 'twitter', 'reddit', 'rss', 'match']);
+const VALID_SOURCES_ALERT = new Set<SourceType>([
+  'youtube', 'twitter', 'reddit', 'facebook', 'instagram', 'tiktok',
+  'threads', 'bluesky', 'mastodon', 'naver_blog', 'hackernews',
+  'news', 'rss', 'match',
+]);
 
 export async function generateAlertsForSpec(
   spec: InterestSpec,
