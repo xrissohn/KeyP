@@ -2,6 +2,7 @@
 
 # compiled output
 dist
+dist-server
 tmp
 out-tsc
 *.tsbuildinfo
@@ -32,6 +33,8 @@ node_modules
 /connect.lock
 /coverage
 /libpeerconnection.log
+.env.local
+.env.*.local
 npm-debug.log
 yarn-error.log
 testem.log

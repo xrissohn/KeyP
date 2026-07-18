@@ -1,4 +1,6 @@
-# Open-source components and integration decisions
+# Legacy Expo open-source components
+
+> This table describes the earlier Expo/API extension. For the current standalone web app and reviewed scraper decisions, see [`apps/keyp-web/docs/OPEN_SOURCE.md`](../apps/keyp-web/docs/OPEN_SOURCE.md).
 
 KeyP composes small, auditable interfaces instead of copying entire third-party codebases. This reduces maintenance risk, keeps licenses clear, and lets operators replace any search provider.
 

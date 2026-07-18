@@ -1,4 +1,6 @@
-# Devpost submission working draft
+# Legacy Devpost submission working draft
+
+> The standalone web rebuild and current requirements are tracked in [`apps/keyp-web/docs/DEVPOST_CHECKLIST.md`](../apps/keyp-web/docs/DEVPOST_CHECKLIST.md).
 
 **Do not paste this draft verbatim.** The entrant should rewrite it in their own voice, replace every placeholder, and describe only behavior verified in the final public deployment.
 
