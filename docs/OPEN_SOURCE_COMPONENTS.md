@@ -6,7 +6,7 @@ KeyP composes small, auditable interfaces instead of copying entire third-party 
 | ------------------------- | ----------------- | --------------------------------------------------- | ----------------------- |
 | `openai/openai-agents-js` | MIT               | Runtime for GPT-5.6 specialist agents               | npm dependency          |
 | `searxng/searxng`         | AGPL-3.0          | Optional operator-hosted JSON search endpoint       | HTTP adapter only       |
-| `DIYgod/RSSHub`           | MIT               | Optional operator-hosted feeds through standard RSS | HTTP/RSS adapter only   |
+| `DIYgod/RSSHub`           | AGPL-3.0          | Optional operator-hosted feeds through standard RSS | HTTP/RSS adapter only   |
 | `rss-parser`              | MIT               | Normalizes RSS/Atom feeds                           | npm dependency          |
 | Bluesky public API        | Bluesky API terms | Searches public posts                               | Native adapter          |
 | Hacker News Algolia API   | Service/API terms | Searches recent public HN stories                   | Native adapter          |
