@@ -1,110 +1,116 @@
 # KeyP — the signal, not the noise
 
-KeyP turns a natural-language interest into continuously verified, multilingual alerts from the public web. Instead of asking one model to search, judge, translate, and rank at once, KeyP decomposes the work into small specialists and runs the independent stages in parallel.
+KeyP turns one natural-language interest into a verified, multilingual signal desk. A GPT-5.6 manager creates six bounded search missions; six scouts search in parallel; deterministic evidence gates reject unsafe, stale, or duplicate URLs; four independent judges score credibility, relevance, freshness, and novelty; and a final editor prepares a source-preserving briefing.
 
-> OpenAI Build Week 2026 · **Apps for Your Life** · Existing project, meaningfully extended after July 13 on `buildweek-gpt56-swarm`
+> OpenAI Build Week 2026 · **Apps for Your Life** · standalone web rebuild in `apps/keyp-web`
 
-![KeyP home feed](screenshots/keyp-04-home.jpg)
+![KeyP standalone web app](apps/keyp-web/docs/keyp-desktop.png)
 
-## What changed for Build Week
+## Try it
 
-The pre-event KeyP app already had an Expo client, Express API, persistence, notifications, and a serial Planner → Collector → Verifier → Deliverer pipeline. The Build Week extension adds:
+Requirements: Node.js 22+ and pnpm 11.
 
-- OpenAI Agents SDK orchestration with `gpt-5.6` intent, decomposition, four independent judge, and multilingual editor agents.
-- Six bounded source scouts running concurrently: official, breaking news, social, video, communities, and Korea.
-- Concurrent public-source adapters for Bluesky, Hacker News, GDELT, optional SearXNG, and optional RSSHub/RSS feeds.
-- Exact-URL reachability checks, SSRF-safe redirect handling, semantic deduplication, strict event-time freshness, and deterministic score fusion.
-- Run metrics for candidate counts, source coverage, elapsed time, and estimated parallel speedup.
-- Explicit source types for X, Facebook, Instagram, TikTok, Threads, Bluesky, Mastodon, Naver Blog, Hacker News, news, YouTube, Reddit, and RSS.
+```bash
+corepack pnpm install --frozen-lockfile
+corepack pnpm dev:web
+```
 
-See [Build Week changelog](docs/BUILD_WEEK_CHANGELOG.md) for the auditable before/after boundary.
+Open `http://localhost:4173`. **Demo** mode is selected by default and works without an API key or external services.
+
+For Live mode, create `.env.local` at the repository root:
+
+```dotenv
+OPENAI_API_KEY=your_server_side_key
+KEYP_MODEL=gpt-5.6
+```
+
+Never use a `VITE_` prefix for the API key. The browser calls KeyP's server; only the server calls OpenAI.
+
+Production:
+
+```bash
+corepack pnpm build:web
+corepack pnpm start:web
+```
+
+## What is new for Build Week
+
+KeyP existed before the submission period as an Expo/React Native app with an Express backend. The auditable Build Week extension is the standalone `apps/keyp-web` application built after July 13, 2026:
+
+- a new responsive React web experience with no Expo, Clerk, or Replit AI dependency;
+- OpenAI Agents SDK orchestration with `gpt-5.6` throughout the manager, scouts, judges, and editor;
+- six concurrent public-web research lanes: official, breaking, social, video, community, and Korea;
+- concurrent Bluesky, Hacker News, GDELT, and optional SearXNG adapters;
+- strict URL protocol/DNS/redirect/status checks, semantic deduplication, event-time freshness, and deterministic weighted fusion;
+- a no-cost Demo mode, local interest history, server-only secrets, and Live rate limiting;
+- deterministic tests, production builds, and Chromium verification at desktop and mobile widths.
+
+The pre-event implementation remains under `artifacts/` for history. It is not required to run the new web app.
 
 ## Architecture
 
-![KeyP GPT-5.6 swarm architecture](docs/agent-interactions.png)
+![KeyP GPT-5.6 signal swarm](apps/keyp-web/docs/architecture.png)
 
-1. `IntentRefiner` turns the saved interest into a precise, privacy-safe monitoring objective.
-2. `QueryDecomposer` creates exactly six bounded source tasks.
-3. The six Perplexity scouts and five public adapters run concurrently.
-4. A deterministic URL gate rejects dead, fabricated, private-network, and soft-404 links.
-5. Four GPT-5.6 judges independently score credibility, relevance, freshness, and novelty.
-6. A deterministic weighted ranker fuses scores; `MultilingualEditor` writes the final Korean or English alert without changing the source URL.
-7. If the new swarm fails, KeyP automatically falls back to the existing production pipeline. Set `KEYP_SWARM_MODE=strict` to expose failures during evaluation or `off` for instant rollback.
+The system deliberately separates probabilistic research from deterministic acceptance:
 
-Technical details: [architecture](docs/ARCHITECTURE.md) · [open-source components](docs/OPEN_SOURCE_COMPONENTS.md)
+1. **Intent Architect** — GPT-5.6 turns an interest into exactly six narrow tasks.
+2. **Parallel research** — six hosted web-search scouts plus public adapters collect candidates concurrently.
+3. **Evidence gate** — code rejects private-network URLs, unreachable pages, old events, known URLs, and semantic duplicates.
+4. **Independent judges** — four GPT-5.6 agents score one dimension each.
+5. **Deterministic fusion** — `30% credibility + 30% relevance + 25% freshness + 15% novelty`, with hard relevance/novelty/freshness failures.
+6. **Briefing Editor** — GPT-5.6 writes Korean or English copy without changing candidate IDs or source URLs.
 
-## Run on Replit
+Empty results are valid. KeyP prefers silence to a fabricated or unverifiable alert.
 
-This branch is designed to use the AI integrations already connected to the Replit project. It does **not** need a separately pasted `OPENAI_API_KEY`.
+## How Codex accelerated the build
 
-1. Import or pull this GitHub branch into the existing Replit project.
-2. Confirm the Replit OpenAI and OpenRouter AI integrations are connected. Replit injects:
-   - `AI_INTEGRATIONS_OPENAI_BASE_URL`
-   - `AI_INTEGRATIONS_OPENAI_API_KEY`
-   - `AI_INTEGRATIONS_OPENROUTER_BASE_URL`
-   - `AI_INTEGRATIONS_OPENROUTER_API_KEY`
-3. In Replit Secrets, set `KEYP_AI_ENABLED=true` and `KEYP_SWARM_MODE=primary`.
-4. Optional: set `SEARXNG_BASE_URL`, `KEYP_RSS_FEEDS` (comma-separated feed URLs), `KEYP_SWARM_MODEL`, or `KEYP_SEARCH_MODEL`.
-5. Rotate the previously committed VAPID key and store the replacement only as `VAPID_PRIVATE_KEY` in Replit Secrets.
-6. Press **Run**. The Replit `Project` workflow starts the API and Expo web app.
+Codex was the primary implementation partner for the Build Week extension. The collaboration began with a product decision: isolate the hackathon experience from the pre-existing Expo/Replit stack after that stack produced dependency and post-login blank-screen failures. Codex then:
 
-The current feature flag intentionally defaults paid AI features to off. A live AI smoke test requires `KEYP_AI_ENABLED=true`; unit tests and builds do not.
+- inspected the legacy boundaries and created the separate `keyp-web-rebuild` branch;
+- translated the product idea into typed contracts and an auditable 12-agent topology;
+- implemented the React interface, Express server, Agents SDK workflow, public adapters, URL safety gates, tests, and deployment docs;
+- ran typechecks, deterministic tests, production API checks, and real Chromium verification;
+- used a paid Live smoke test to catch an actual Structured Outputs incompatibility (`format: uri`), then moved URL enforcement to the deterministic evidence gate and verified all GPT-5.6 scouts completed successfully.
 
-## Local verification
+The human product decisions remained explicit: preserve the KeyP name and privacy promise, choose **Apps for Your Life**, prioritize evidence over volume, avoid brittle private-platform scraping, make Demo mode the default, and rebuild as a portable web product rather than keep patching the Expo shell.
 
-Requirements: Node.js 24 and pnpm 11.
-
-```bash
-pnpm install
-pnpm run typecheck:libs
-pnpm --filter @workspace/api-server typecheck
-pnpm --filter @workspace/api-server test:swarm
-pnpm --filter @workspace/api-server build
-```
-
-The deterministic tests do not call paid models. A live Replit test can POST the same interest twice to `/api/agents/generate-alerts`; verify that the second response does not repeat the first response's `existingAlertSummaries`, every source URL opens, and `metrics.model` is `gpt-5.6`.
-
-## Open-source strategy
-
-KeyP integrates maintained components rather than copying large projects into the repository:
-
-- [`openai/openai-agents-js`](https://github.com/openai/openai-agents-js) for agent execution.
-- [`searxng/searxng`](https://github.com/searxng/searxng) through its optional JSON API.
-- [`DIYgod/RSSHub`](https://github.com/DIYgod/RSSHub) through standard RSS endpoints.
-- Bluesky public API, Hacker News Algolia API, and GDELT DOC API through small native adapters.
-- `rss-parser` for feed normalization.
-
-Platforms such as X, Facebook, Instagram, TikTok, YouTube, Reddit, and Naver differ in public API availability and terms. KeyP searches only publicly accessible content through the web-research lane and never bypasses authentication, scrapes private profiles, or deanonymizes people.
-
-## Repository map
-
-```text
-artifacts/keyp/                 Expo / React Native app
-artifacts/api-server/           Express API and background pipeline
-  src/services/swarm/           Build Week multi-agent extension
-lib/api-spec/                   OpenAPI source of truth
-lib/api-zod/                    Runtime validation and shared types
-docs/                           Architecture, evidence, demo, submission draft
-```
+GPT-5.6 is not a label on the UI. It performs intent decomposition, live web research, four-dimensional independent judging, and multilingual source-preserving editing in the running product.
 
 ## Safety and privacy
 
-- Public information only; no private-account access or login bypass.
-- No private-person identification, profiling, or deanonymization.
-- Every LLM-supplied URL passes protocol, DNS, redirect, private-IP, status, and soft-404 gates.
-- Previously delivered stories are blocked semantically even when another publisher rewrites them.
-- Event time outranks republish time; silence is preferred to stale or fabricated information.
-- Secrets stay in Replit Secrets and are never committed.
+- Public information only; no login bypass, private-account access, friend graphs, or deanonymization.
+- Every model-proposed URL passes an SSRF-resistant DNS and redirect gate before delivery.
+- Live mode is limited per client; Demo mode never calls a paid model.
+- Browser history stays in local storage; the MVP does not create user profiles.
+- Secrets are loaded only from server environment variables and `.env.local` is ignored by Git.
+- X, Facebook, Instagram, TikTok, YouTube, Reddit, and Naver coverage means public, web-visible content—not universal or private API access.
 
-## Build Week evidence
+## Verification
 
-- Branch: `buildweek-gpt56-swarm`
-- Baseline commit: `a14dd2f`
-- New implementation: `artifacts/api-server/src/services/swarm/`
-- Model: `gpt-5.6`, explicit in code and runtime metrics
-- SDK: `@openai/agents`
-- Submission checklist and demo script: [docs/DEVPOST_SUBMISSION_DRAFT.md](docs/DEVPOST_SUBMISSION_DRAFT.md), [docs/DEMO_SCRIPT_KO.md](docs/DEMO_SCRIPT_KO.md)
+```bash
+corepack pnpm typecheck:web
+corepack pnpm test:web
+corepack pnpm build:web
+```
+
+Current evidence:
+
+- 6/6 deterministic tests pass;
+- TypeScript passes with no emit;
+- production client and server bundles build successfully;
+- Demo API returns 6 lanes, 12 agent nodes, 3 signals, and deterministic metrics;
+- Chromium renders desktop and 390 px mobile without blank pages, error overlays, console errors, or horizontal overflow;
+- Live GPT-5.6 smoke test produced 13 candidates with zero failed agents. This restricted Codex sandbox could not complete public URL DNS verification, so the final Live URL-gate check must be repeated on the deployed host.
+
+## Documentation
+
+- [Standalone web app guide](apps/keyp-web/README.md)
+- [Architecture](apps/keyp-web/docs/ARCHITECTURE.md)
+- [Open-source components and decisions](apps/keyp-web/docs/OPEN_SOURCE.md)
+- [Replit and Node deployment](apps/keyp-web/docs/DEPLOYMENT.md)
+- [Devpost submission checklist](apps/keyp-web/docs/DEVPOST_CHECKLIST.md)
+- [Under-three-minute video script](apps/keyp-web/docs/VIDEO_SCRIPT.md)
 
 ## License
 
-MIT. Third-party components retain their own licenses; see [docs/OPEN_SOURCE_COMPONENTS.md](docs/OPEN_SOURCE_COMPONENTS.md).
+MIT. Third-party components retain their own licenses and terms; see [OPEN_SOURCE.md](apps/keyp-web/docs/OPEN_SOURCE.md).

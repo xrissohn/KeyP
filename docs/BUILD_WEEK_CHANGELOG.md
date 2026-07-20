@@ -1,4 +1,6 @@
-# Build Week change boundary
+# Build Week change boundary — legacy Expo phase
+
+> The later standalone rebuild is entirely contained in `apps/keyp-web`; see the root README for the current before/after boundary.
 
 This repository existed before OpenAI Build Week. The baseline is commit `a14dd2f` on `main`. This file separates prior work from work created for the July 13–22, 2026 submission period.
 

@@ -1,0 +1,75 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="900" viewBox="0 0 1600 900">
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop stop-color="#181320"/><stop offset="1" stop-color="#2b2041"/></linearGradient>
+    <linearGradient id="violet" x1="0" x2="1"><stop stop-color="#9a7bff"/><stop offset="1" stop-color="#6844db"/></linearGradient>
+    <filter id="shadow" x="-20%" y="-20%" width="140%" height="140%"><feDropShadow dx="0" dy="14" stdDeviation="18" flood-color="#09060d" flood-opacity=".38"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="5" orient="auto"><path d="M0,0 L10,5 L0,10 z" fill="#aa94f4"/></marker>
+  </defs>
+  <rect width="1600" height="900" rx="34" fill="url(#bg)"/>
+  <circle cx="1450" cy="80" r="260" fill="none" stroke="#8e6ff5" stroke-opacity=".12" stroke-width="2"/>
+  <circle cx="1450" cy="80" r="190" fill="none" stroke="#8e6ff5" stroke-opacity=".1" stroke-width="2"/>
+  <text x="100" y="105" fill="#a98fff" font-family="Arial, sans-serif" font-size="20" font-weight="700" letter-spacing="4">KEYP · GPT-5.6 SIGNAL SWARM</text>
+  <text x="100" y="165" fill="#ffffff" font-family="Arial, sans-serif" font-size="44" font-weight="700">Evidence before prose</text>
+  <text x="100" y="205" fill="#afa7b8" font-family="Arial, sans-serif" font-size="19">Probabilistic agents search and judge. Deterministic code decides what can ship.</text>
+
+  <g filter="url(#shadow)">
+    <rect x="90" y="325" width="220" height="210" rx="24" fill="#f7f4ff"/>
+    <rect x="114" y="350" width="48" height="48" rx="14" fill="url(#violet)"/>
+    <text x="138" y="382" fill="#fff" font-family="Arial" font-size="22" font-weight="700" text-anchor="middle">1</text>
+    <text x="114" y="435" fill="#251c35" font-family="Arial" font-size="22" font-weight="700">Intent Architect</text>
+    <text x="114" y="470" fill="#736b7e" font-family="Arial" font-size="16">GPT-5.6 manager</text>
+    <text x="114" y="498" fill="#736b7e" font-family="Arial" font-size="16">Six bounded missions</text>
+  </g>
+
+  <path d="M310 430 H372" stroke="#aa94f4" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="390" y="280" width="280" height="300" rx="24" fill="#211a2c" stroke="#7557d8"/>
+    <text x="420" y="326" fill="#b9a5fa" font-family="Arial" font-size="15" font-weight="700" letter-spacing="2">PARALLEL RESEARCH</text>
+    <g fill="#302641">
+      <rect x="420" y="350" width="100" height="52" rx="10"/><rect x="536" y="350" width="104" height="52" rx="10"/>
+      <rect x="420" y="414" width="100" height="52" rx="10"/><rect x="536" y="414" width="104" height="52" rx="10"/>
+      <rect x="420" y="478" width="100" height="52" rx="10"/><rect x="536" y="478" width="104" height="52" rx="10"/>
+    </g>
+    <g fill="#f0ecf7" font-family="Arial" font-size="13" font-weight="700" text-anchor="middle">
+      <text x="470" y="381">Official</text><text x="588" y="381">Breaking</text>
+      <text x="470" y="445">Social</text><text x="588" y="445">Video</text>
+      <text x="470" y="509">Community</text><text x="588" y="509">Korea</text>
+    </g>
+    <text x="420" y="554" fill="#8d8499" font-family="Arial" font-size="14">+ Bluesky · HN · GDELT · SearXNG</text>
+  </g>
+
+  <path d="M670 430 H732" stroke="#aa94f4" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="750" y="325" width="220" height="210" rx="24" fill="#f7f4ff"/>
+    <rect x="774" y="350" width="48" height="48" rx="14" fill="#2f9d77"/>
+    <text x="798" y="382" fill="#fff" font-family="Arial" font-size="22" font-weight="700" text-anchor="middle">✓</text>
+    <text x="774" y="435" fill="#251c35" font-family="Arial" font-size="22" font-weight="700">Evidence gate</text>
+    <text x="774" y="470" fill="#736b7e" font-family="Arial" font-size="16">URL · DNS · redirects</text>
+    <text x="774" y="498" fill="#736b7e" font-family="Arial" font-size="16">Freshness · dedupe</text>
+  </g>
+
+  <path d="M970 430 H1032" stroke="#aa94f4" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="1050" y="280" width="230" height="300" rx="24" fill="#211a2c" stroke="#7557d8"/>
+    <text x="1080" y="326" fill="#b9a5fa" font-family="Arial" font-size="15" font-weight="700" letter-spacing="2">4 GPT-5.6 JUDGES</text>
+    <g fill="#302641"><rect x="1080" y="350" width="170" height="42" rx="9"/><rect x="1080" y="405" width="170" height="42" rx="9"/><rect x="1080" y="460" width="170" height="42" rx="9"/><rect x="1080" y="515" width="170" height="42" rx="9"/></g>
+    <g fill="#f0ecf7" font-family="Arial" font-size="14" font-weight="700"><text x="1100" y="377">Credibility · 30%</text><text x="1100" y="432">Relevance · 30%</text><text x="1100" y="487">Freshness · 25%</text><text x="1100" y="542">Novelty · 15%</text></g>
+  </g>
+
+  <path d="M1280 430 H1342" stroke="#aa94f4" stroke-width="3" marker-end="url(#arrow)"/>
+
+  <g filter="url(#shadow)">
+    <rect x="1360" y="325" width="160" height="210" rx="24" fill="url(#violet)"/>
+    <text x="1390" y="380" fill="#e8e0ff" font-family="Arial" font-size="14" font-weight="700" letter-spacing="2">DELIVER</text>
+    <text x="1390" y="430" fill="#fff" font-family="Arial" font-size="23" font-weight="700">Ranked</text>
+    <text x="1390" y="460" fill="#fff" font-family="Arial" font-size="23" font-weight="700">briefing</text>
+    <text x="1390" y="497" fill="#e4dcff" font-family="Arial" font-size="14">Exact source links</text>
+  </g>
+
+  <rect x="90" y="690" width="1430" height="100" rx="18" fill="#ffffff" fill-opacity=".055" stroke="#ffffff" stroke-opacity=".09"/>
+  <text x="125" y="733" fill="#a98fff" font-family="Arial" font-size="15" font-weight="700" letter-spacing="2">HARD PRODUCT PROMISE</text>
+  <text x="125" y="768" fill="#eeeaf3" font-family="Arial" font-size="22" font-weight="700">Private sources are never accessed. Empty results are valid. Every delivered signal keeps its exact URL.</text>
+</svg>

@@ -1,4 +1,6 @@
-# 3분 데모 영상 스크립트
+# 기존 Expo용 3분 데모 영상 스크립트
+
+> 최종 제출 영상에는 이 문서를 사용하지 마세요. 현재 독립 웹앱용 대본은 [`apps/keyp-web/docs/VIDEO_SCRIPT.md`](../apps/keyp-web/docs/VIDEO_SCRIPT.md)에 있습니다.
 
 목표 길이: **2분 35초–2분 50초**. 공개 YouTube 영상, 음성 설명 필수. 화면을 1440p로 녹화하고 자막은 영어를 함께 넣는다.
 

@@ -1,4 +1,6 @@
-# KeyP GPT-5.6 Signal Swarm
+# Legacy Expo GPT-5.6 Signal Swarm
+
+> Historical reference only. The current standalone submission app is documented in [`apps/keyp-web/docs/ARCHITECTURE.md`](../apps/keyp-web/docs/ARCHITECTURE.md) and does not use the Replit/Perplexity pipeline described below.
 
 ## Design goal
 

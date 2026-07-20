@@ -1,8 +1,16 @@
 packages:
+  - apps/*
   - artifacts/*
   - lib/*
   - lib/integrations/*
   - scripts
+
+allowBuilds:
+  '@clerk/shared': false
+  browser-tabs-lock: false
+  core-js: false
+  esbuild: true
+  sharp: true
 
 autoInstallPeers: false
 
