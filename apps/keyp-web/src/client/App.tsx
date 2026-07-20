@@ -105,7 +105,7 @@ function timeAgo(value: string, language: Language): string {
 function Logo({ compact = false }: { compact?: boolean }) {
   return (
     <div className="brand" aria-label="KeyP">
-      <div className="brand-mark"><span>K</span><i /></div>
+      <div className="brand-mark"><img src="/keyp-icon.png" alt="" aria-hidden="true" /></div>
       {!compact && <span className="brand-name">KeyP</span>}
     </div>
   );
